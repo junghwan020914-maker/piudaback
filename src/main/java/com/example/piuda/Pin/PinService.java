@@ -3,6 +3,7 @@ package com.example.piuda.Pin;
 import com.example.piuda.Report.ReportRepository;
 import com.example.piuda.Notify.NotifyRepository;
 import com.example.piuda.Reserv.ReservRepository;
+import com.example.piuda.ReportPhoto.ReportPhotoRepository;
 import com.example.piuda.domain.Entity.Pin;
 import com.example.piuda.domain.Entity.Report;
 import com.example.piuda.domain.Entity.Trash;
@@ -25,9 +26,70 @@ public class PinService {
     private final ReportRepository reportRepository;
     private final NotifyRepository notifyRepository;
     private final ReservRepository reservRepository;
+    private final ReportPhotoRepository reportPhotoRepository;
 
     public List<Pin> getAllPins() {
         return pinRepository.findAll();
+    }
+
+    // 핀 상세 조회 (PinResponseDTO 재사용)
+    public PinResponseDTO getPinDetails(Long pinId) {
+    Pin pin = pinRepository.findById(pinId).orElse(null);
+    if (pin == null) return null;
+
+    List<Report> reports = reportRepository.findByPin(pin);
+    var orgNames = reports.stream()
+        .map(Report::getReportName)
+        .filter(Objects::nonNull)
+        .distinct()
+        .collect(Collectors.toList());
+
+    double totalKg = reports.stream()
+        .map(Report::getTrash)
+        .filter(Objects::nonNull)
+        .mapToDouble(t -> t.getTrashKg() != null ? t.getTrashKg() : 0.0)
+        .sum();
+    double totalL = reports.stream()
+        .map(Report::getTrash)
+        .filter(Objects::nonNull)
+        .mapToDouble(t -> t.getTrashL() != null ? t.getTrashL() : 0.0)
+        .sum();
+    int activityCount = reports.size();
+    LocalDate latestActivityDate = reports.stream()
+        .map(Report::getReportDate)
+        .filter(Objects::nonNull)
+        .max(LocalDate::compareTo)
+        .orElse(null);
+
+    List<PinResponseDTO.ReportSummary> summaries = reports.stream()
+        .map(r -> {
+            var photos = reportPhotoRepository.findByReport(r);
+            List<String> paths = photos.stream()
+                .map(p -> p.getRphotoPath())
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+            return new PinResponseDTO.ReportSummary(
+                r.getReportId(),
+                r.getReportTitle(),
+                r.getReportName(),
+                r.getReportDate(),
+                r.getTrash() != null ? r.getTrash().getTrashKg() : null,
+                r.getTrash() != null ? r.getTrash().getTrashL() : null,
+                r.getReportContent(),
+                paths
+            );
+        })
+        .collect(Collectors.toList());
+
+    return PinResponseDTO.detailed(
+        pin,
+        orgNames,
+        totalKg,
+        totalL,
+        latestActivityDate,
+        activityCount,
+        summaries
+    );
     }
 
 // 필터링된 핀 반환 메소드
@@ -36,13 +98,15 @@ public class PinService {
             LocalDate endDate,
             List<String> organizationNames,
             Pin.Region region,
-            Double minKg,
-            Double minL) {
+        Double minKg,
+        Double minL,
+        Double maxKg,
+        Double maxL) {
 
         // 빈 리스트는 필터 미적용을 위해 null로 전달
         List<String> orgNamesParam = (organizationNames == null || organizationNames.isEmpty()) ? null : organizationNames;
 
-        List<Pin> pins = pinRepository.findWithFilters(startDate, endDate, orgNamesParam, region, minKg, minL);
+    List<Pin> pins = pinRepository.findWithFilters(startDate, endDate, orgNamesParam, region, minKg, minL, maxKg, maxL);
 
         return pins.stream().map(pin -> {
             List<Report> reports = reportRepository.findByPin(pin);

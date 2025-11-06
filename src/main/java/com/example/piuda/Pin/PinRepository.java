@@ -24,14 +24,18 @@ public interface PinRepository extends JpaRepository<Pin, Long> {
             ")) " +
             "GROUP BY p.pinId " +
             "HAVING (:minKg IS NULL OR SUM(t.trashKg) >= :minKg) " +
-            "AND (:minL IS NULL OR SUM(t.trashL) >= :minL)")
+            "AND (:minL IS NULL OR SUM(t.trashL) >= :minL) " +
+            "AND (:maxKg IS NULL OR SUM(t.trashKg) <= :maxKg) " +
+            "AND (:maxL IS NULL OR SUM(t.trashL) <= :maxL)")
     List<Pin> findWithFilters(
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate,
             @Param("organizationNames") List<String> organizationNames,
             @Param("region") Pin.Region region,
             @Param("minKg") Double minKg,
-            @Param("minL") Double minL
+            @Param("minL") Double minL,
+            @Param("maxKg") Double maxKg,
+            @Param("maxL") Double maxL
     );
 
     @Query("SELECT p FROM Pin p " +

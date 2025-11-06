@@ -3,6 +3,7 @@ package com.example.piuda.Pin;
 import com.example.piuda.domain.Entity.Pin;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -31,8 +32,10 @@ public class PinController {
             // 쉼표(,)로 구분된 단체명 목록. 예) organizationNames=단체A,단체B
             @RequestParam(required = false) String organizationNames,
             @RequestParam(required = false) Pin.Region region,
-            @RequestParam(required = false) Double minKg,
-            @RequestParam(required = false) Double minL) {
+        @RequestParam(required = false) Double minKg,
+        @RequestParam(required = false) Double minL,
+        @RequestParam(required = false) Double maxKg,
+        @RequestParam(required = false) Double maxL) {
         List<String> orgList = null;
         if (organizationNames != null && !organizationNames.isBlank()) {
             orgList = Arrays.stream(organizationNames.split(","))
@@ -41,6 +44,12 @@ public class PinController {
                     .distinct()
                     .collect(Collectors.toList());
         }
-        return pinService.getFilteredPins(startDate, endDate, orgList, region, minKg, minL);
+        return pinService.getFilteredPins(startDate, endDate, orgList, region, minKg, minL, maxKg, maxL);
+    }
+
+    // 특정 핀 상세 정보: 최근 활동일, 누적 수거량, 활동 횟수, 참여 단체, 후기 목록 요약
+    @GetMapping("/{pinId}/details")
+    public PinResponseDTO getPinDetails(@PathVariable Long pinId) {
+        return pinService.getPinDetails(pinId);
     }
 }
