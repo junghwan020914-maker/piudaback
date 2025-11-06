@@ -30,20 +30,7 @@ public class PinService {
         return pinRepository.findAll();
     }
 
-    // 주어진 좌표 근처에 기존 핀이 있는지 찾아 반환
-    public Optional<Pin> findNearbyPin(double x, double y, double distanceMeters) {
-        List<Pin> pins = pinRepository.findAll();
-        for (Pin pin : pins) {
-            double dx = pin.getPinX() - x;
-            double dy = pin.getPinY() - y;
-            double dist = Math.sqrt(dx * dx + dy * dy) * 111_000; // 위도/경도 -> m 변환(간략)
-            if (dist < distanceMeters) {
-                return Optional.of(pin);
-            }
-        }
-        return Optional.empty();
-    }
-
+// 필터링된 핀 반환 메소드
     public List<PinResponseDTO> getFilteredPins(
             LocalDate startDate,
             LocalDate endDate,
@@ -82,9 +69,9 @@ public class PinService {
         return false;
     }
 
-    // addPinFromNotify는 NotifyService의 addPinFromNotifyAndGet 사용으로 대체됨
+
     
-        // addPinFromNotify의 의도를 유지하면서, 생성되었든 기존이었든 참조할 핀을 반환
+        // 제보 상태가 수락으로 변경된경우 핀추가, 해당 위치의 핀 이미 존재시 존재하고 있는 핀 반환(red 핀 생성)
         public Optional<Pin> addPinFromNotifyAndGet(double x, double y, double distanceMeters) {
             // 근처에 핀이 없으면 새로 생성 후 반환
             if (!isPinNearby(x, y, distanceMeters)) {
@@ -110,20 +97,6 @@ public class PinService {
             return Optional.empty();
         }
 
-    // 일정 거리 내 중복이 없으면 Pin을 생성하고 생성된 Pin을 반환
-    public Optional<Pin> createPinIfNotNearby(double x, double y, double distanceMeters) {
-        if (isPinNearby(x, y, distanceMeters)) {
-            return Optional.empty();
-        }
-        Pin pin = Pin.builder()
-                .pinX(x)
-                .pinY(y)
-                .pinCreatedAt(java.time.LocalDateTime.now())
-                .pinColor(Pin.PinColor.RED)
-                .build();
-        Pin saved = pinRepository.save(pin);
-        return Optional.of(saved);
-    }
     // 예약 시 핀 색상 파란색으로 변경
     public boolean setPinColorBlue(Long pinId) {
         return pinRepository.findById(pinId).map(pin -> {
@@ -176,6 +149,15 @@ public class PinService {
 
         int affected = 0;
         for (Pin p : targetPins) {
+            // 규칙 변경: 해당 핀의 모든 예약이 현재 날짜 기준 '지난' 경우에만 처리
+            var allReservsForPin = reservRepository.findByPin(p);
+            boolean hasFutureOrToday = allReservsForPin.stream()
+                    .anyMatch(rv -> !rv.getReservDate().isBefore(today)); // today 또는 future 존재 시 true
+            if (hasFutureOrToday) {
+                // 아직 미래(또는 오늘)의 예약이 남아있으면 스킵
+                continue;
+            }
+
             List<Report> reports = reportRepository.findByPin(p);
             if (reports != null && !reports.isEmpty()) {
                 // 후기(리포트) 존재 -> WHITE로 변경
@@ -208,7 +190,7 @@ public class PinService {
     }
 
     // 스케줄러: 매일 새벽 3시 RED 오래된 핀 정리
-    @Scheduled(cron = "0 40 0 * * *")
+    @Scheduled(cron = "0 0 3 * * *")
     @Transactional
     public void scheduledCleanupOldRedPins() {
         cleanupOldRedPins();
