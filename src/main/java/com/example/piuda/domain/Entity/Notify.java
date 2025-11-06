@@ -43,6 +43,11 @@ public class Notify {
         this.pin = pin;
     }
 
+    // 상태 변경을 위한 setter
+    public void setNotifyStatus(NotifyStatus status) {
+        this.notifyStatus = status;
+    }
+
     public enum NotifyStatus {
         WAIT, ACCEPT, REJECT
     }

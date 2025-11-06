@@ -11,6 +11,10 @@ import java.time.LocalDateTime;
 @Builder
 @Table(name = "Pin")
 public class Pin {
+
+    public enum Region {
+        WEST_SEA, EAST_SEA, SOUTH_SEA, JEJU, ULLEUNG
+    }
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,6 +29,10 @@ public class Pin {
 
     @Column(name = "pin_created_at", nullable = false)
     private LocalDateTime pinCreatedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "region")
+    private Region region;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "pin_color", nullable = false)
