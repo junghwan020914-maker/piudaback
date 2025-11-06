@@ -38,6 +38,11 @@ public class Notify {
     @JoinColumn(name = "pin_id")
     private Pin pin;
 
+    // JPA 사용 시 서비스에서 연관관계 설정을 위해 setter 제공
+    public void setPin(Pin pin) {
+        this.pin = pin;
+    }
+
     public enum NotifyStatus {
         WAIT, ACCEPT, REJECT
     }
