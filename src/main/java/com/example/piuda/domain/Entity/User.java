@@ -26,6 +26,9 @@ public class User {
     @Column(name = "user_pw", nullable = false, length = 60)
     private String userPw;
 
+    @Column(name = "user_phone", nullable = false, length = 30)
+    private String userPhone;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "user_role", nullable = false)
     @Builder.Default
@@ -36,6 +39,17 @@ public class User {
 
     @Column(name = "user_updated_at")
     private LocalDateTime userUpdatedAt;
+
+    @PrePersist
+    void onCreate() {
+        this.userCreatedAt = LocalDateTime.now();
+        this.userUpdatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        this.userUpdatedAt = LocalDateTime.now();
+    }
     
     public enum UserRole {
         PRIVATE, GROUP, ADMIN
