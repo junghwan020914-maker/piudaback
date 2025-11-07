@@ -17,10 +17,12 @@ public class Trash {
     private Long trashId;
 
     @Column(name = "trash_kg", nullable = false)
-    private Double trashKg;
+    @Builder.Default
+    private Double trashKg = 0.0;
 
     @Column(name = "trash_l", nullable = false)
-    private Double trashL;
+    @Builder.Default
+    private Double trashL = 0.0;
 
     @Column(name = "trash_pet")
     private Integer trashPet;
