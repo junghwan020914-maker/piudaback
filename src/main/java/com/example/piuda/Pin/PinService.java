@@ -4,6 +4,7 @@ import com.example.piuda.Report.ReportRepository;
 import com.example.piuda.Notify.NotifyRepository;
 import com.example.piuda.Reserv.ReservRepository;
 import com.example.piuda.ReportPhoto.ReportPhotoRepository;
+import com.example.piuda.domain.Entity.DTO.PinResponseDTO;
 import com.example.piuda.domain.Entity.Pin;
 import com.example.piuda.domain.Entity.Report;
 import com.example.piuda.domain.Entity.Trash;

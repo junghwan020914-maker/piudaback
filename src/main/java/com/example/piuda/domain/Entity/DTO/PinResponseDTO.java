@@ -1,4 +1,4 @@
-package com.example.piuda.Pin;
+package com.example.piuda.domain.Entity.DTO;
 
 import com.example.piuda.domain.Entity.Pin;
 import lombok.AllArgsConstructor;

@@ -1,5 +1,6 @@
 package com.example.piuda.Pin;
 
+import com.example.piuda.domain.Entity.DTO.PinResponseDTO;
 import com.example.piuda.domain.Entity.Pin;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
