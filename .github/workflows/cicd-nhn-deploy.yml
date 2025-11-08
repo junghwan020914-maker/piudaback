@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      BASE: ${{ secrets.NHN_API_BASE }}
+      BASE: ${{ secrets.NHN_API_BASE }}           # ex) https://api-kr.nhncloudservice.com
       APPKEY: ${{ secrets.NHN_APPKEY }}
       PROJECT_ID: ${{ secrets.NHN_PROJECT_ID }}
       SERVER_GROUP_ID: ${{ secrets.NHN_SERVER_GROUP_ID }}
@@ -46,36 +46,29 @@ jobs:
           else
             echo 'AUTH=' >> $GITHUB_OUTPUT
           fi
-      
 
-      # 1) 파일그룹 목록에서 이름으로 ID 찾기
-      - name: Debug & Fix BASE
-        id: fixbase
+      # === BASE 정규화: 앞뒤 공백 제거, 끝 / 제거, https:// 자동 부착 ===
+      - name: Normalize BASE (trim/ensure https/drop trailing slash)
         run: |
-          echo "RAW=[${BASE}]"
-          # 앞뒤 공백/개행 제거
-          BASE_TRIMMED="$(printf '%s' "$BASE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-          # 끝의 / 제거
-          BASE_TRIMMED="${BASE_TRIMMED%/}"
-          # 스킴 없으면 https:// 붙이기
-          if ! echo "$BASE_TRIMMED" | grep -qiE '^https?://'; then
-           BASE_TRIMMED="https://$BASE_TRIMMED"
-          fi
-          echo "FIXED=[${BASE_TRIMMED}]"
-          echo "fixed=${BASE_TRIMMED}" >> $GITHUB_OUTPUT
+          python3 - <<'PY' >> $GITHUB_ENV
+          import os
+          b = (os.environ.get('BASE') or '').strip()
+          if b.endswith('/'): b = b[:-1]
+          if not (b.startswith('http://') or b.startswith('https://')):
+              b = 'https://' + b
+          print(f"BASE_FIXED={b}")
+          PY
 
-          - name: Ping Deploy API (DNS/네트워크 확인)
-            run: |
-              echo "curl to [${
-                { steps.fixbase.outputs.fixed }
-              }/deploy/v2.0/health]"
-              curl -sS -I "${{ steps.fixbase.outputs.fixed }}/deploy/v2.0/health" || true
+      - name: Debug BASE_FIXED
+        run: echo "BASE_FIXED=[$BASE_FIXED]"   # 마스킹돼서 값은 ***로 보임
 
+      # === 1) 파일그룹 이름으로 ID 조회 ===
       - name: Resolve File Group ID by name
         id: fg
         run: |
-          RESP=$(curl -sS -H "X-APP-KEY: $APPKEY" ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
-            "$BASE/deploy/v2.0/projects/$PROJECT_ID/file-groups")
+          RESP=$(curl -sS -H "X-APP-KEY: $APPKEY" \
+            ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
+            "$BASE_FIXED/deploy/v2.0/projects/$PROJECT_ID/file-groups")
           echo "$RESP" | jq -r '.'
           FGID=$(echo "$RESP" | jq -r ".fileGroups[] | select(.name==\"$FILE_GROUP_NAME\") | .id")
           if [ -z "$FGID" ]; then
@@ -84,7 +77,7 @@ jobs:
           fi
           echo "id=$FGID" >> $GITHUB_OUTPUT
 
-      # 2) JAR 업로드 (파일그룹 ID 사용)
+      # === 2) JAR 업로드 ===
       - name: Upload JAR to File Group
         id: upload
         env:
@@ -92,11 +85,12 @@ jobs:
         run: |
           JAR="${{ steps.jar.outputs.path }}"
           RESP=$(curl -sS -X POST \
-            -H "X-APP-KEY: $APPKEY" ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
+            -H "X-APP-KEY: $APPKEY" \
+            ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
             -H "Content-Type: multipart/form-data" \
             -F "file=@${JAR}" \
             -F "fileName=app.jar" \
-            "$BASE/deploy/v2.0/projects/$PROJECT_ID/file-groups/$FGID/files")
+            "$BASE_FIXED/deploy/v2.0/projects/$PROJECT_ID/file-groups/$FGID/files")
           echo "$RESP" | jq -r '.'
           FILE_ID=$(echo "$RESP" | jq -r '.fileId // .id // empty')
           if [ -z "$FILE_ID" ]; then
@@ -105,9 +99,8 @@ jobs:
           fi
           echo "file_id=$FILE_ID" >> $GITHUB_OUTPUT
 
-      # 3) 시나리오 실행
-      #    ─ File Deploy Task를 "해당 파일그룹의 최신 파일 사용"으로 만들어두면 FILE_ID를 variables로 넘길 필요 없음.
-      #    ─ 만약 변수 받도록 구성했다면 아래 variables에 FILE_ID를 넣어 전달.
+      # === 3) 시나리오 실행 ===
+      # File Deploy Task가 "최신 업로드 사용"이면 variables에서 FILE_ID 제외해도 됨.
       - name: Run Scenario
         id: run
         run: |
@@ -119,10 +112,11 @@ jobs:
             --arg fid "${{ steps.upload.outputs.file_id }}" \
             '{serverGroupId:$sg, scenarioId:$sc, variables:{TARGET_DIR:$dir, TARGET_NAME:$name, FILE_ID:$fid}}')
           START=$(curl -sS -X POST \
-            -H "X-APP-KEY: $APPKEY" ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
+            -H "X-APP-KEY: $APPKEY" \
+            ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
             -H "Content-Type: application/json" \
             -d "$BODY" \
-            "$BASE/deploy/v2.0/projects/$PROJECT_ID/scenarios/$SCENARIO_ID/run")
+            "$BASE_FIXED/deploy/v2.0/projects/$PROJECT_ID/scenarios/$SCENARIO_ID/run")
           echo "$START" | jq -r '.'
           EXEC_ID=$(echo "$START" | jq -r '.executionId // .id // empty')
           if [ -z "$EXEC_ID" ]; then
@@ -131,14 +125,15 @@ jobs:
           fi
           echo "exec_id=$EXEC_ID" >> $GITHUB_OUTPUT
 
-      # 4) 실행 상태 대기
+      # === 4) 실행 상태 대기 ===
       - name: Wait for Deploy Result
         env:
           EXEC_ID: ${{ steps.run.outputs.exec_id }}
         run: |
           for i in {1..60}; do
-            RESP=$(curl -sS -H "X-APP-KEY: $APPKEY" ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
-              "$BASE/deploy/v2.0/projects/$PROJECT_ID/executions/$EXEC_ID")
+            RESP=$(curl -sS -H "X-APP-KEY: $APPKEY" \
+              ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
+              "$BASE_FIXED/deploy/v2.0/projects/$PROJECT_ID/executions/$EXEC_ID")
             STATUS=$(echo "$RESP" | jq -r '.status // empty')
             echo "status: $STATUS"
             if [ "$STATUS" = "SUCCEEDED" ] || [ "$STATUS" = "SUCCESS" ]; then exit 0; fi
