@@ -1,29 +1,26 @@
-name: CI/CD - NHN Deploy (v1 upload + v2 deploy)
+name: CI/CD - NHN Deploy (file-group → scenario)
 
 on:
   push:
     branches: ["main"]
-  workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
 
     env:
-      # ✅ NHN Deploy 공용 엔드포인트 (고정)
-      BASE: https://api-tcd.nhncloudservice.com
-      # ✅ Secrets 필요값 (콘솔 값과 정확히 일치)
-      APPKEY: ${{ secrets.NHN_APPKEY }}            # Deploy 콘솔 AppKey
-      ARTIFACT_ID: ${{ secrets.NHN_PROJECT_ID }}   # Deploy 콘솔 Artifact ID (숫자)
+      BASE: ${{ secrets.NHN_API_BASE }}
+      APPKEY: ${{ secrets.NHN_APPKEY }}
+      PROJECT_ID: ${{ secrets.NHN_PROJECT_ID }}
       SERVER_GROUP_ID: ${{ secrets.NHN_SERVER_GROUP_ID }}
-      FILE_GROUP_NAME: ${{ secrets.NHN_FILE_GROUP_NAME }} # 콘솔 그룹 이름 (대/소문자 정확히)
+      SCENARIO_ID: ${{ secrets.NHN_SCENARIO_ID }}
+      FILE_GROUP_NAME: ${{ secrets.NHN_FILE_GROUP_NAME }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -31,68 +28,77 @@ jobs:
 
       - name: Build (Gradle)
         run: |
-          set -euo pipefail
           chmod +x ./gradlew
           ./gradlew clean bootJar --no-daemon
 
-      - name: Find JAR
+      - name: Find built JAR
         id: jar
-        run: |
-          set -euo pipefail
-          FILE=$(ls -1 build/libs/*.jar | head -n1)
-          [ -n "$FILE" ] || { echo "❌ JAR not found under build/libs"; exit 1; }
-          echo "path=$FILE" >> $GITHUB_OUTPUT
-          echo "✅ JAR: $FILE"
+        run: echo "path=$(ls -1 build/libs/*.jar | head -n1)" >> $GITHUB_OUTPUT
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      # 1) (v1) Binary Group 목록 조회 → 이름으로 key 얻기
-      - name: Resolve Binary Group Key (v1)
-        id: bg
-        run: |
-          set -euo pipefail
-          URL="$BASE/api/v1.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/binary-group"
-          echo "GET $URL"
-          HTTP=$(curl -sS -w "%{http_code}" -o /tmp/bg.json "$URL" || true)
-          echo "http=$HTTP"
-          head -c 400 /tmp/bg.json || true; echo
-          [ "$HTTP" = "200" ] || { echo "❌ binary-group 조회 실패 (HTTP $HTTP)"; exit 1; }
-          jq -e '.' </tmp/bg.json >/dev/null || { echo "❌ JSON 아님"; exit 1; }
-          KEY=$(jq -r --arg NAME "$FILE_GROUP_NAME" '.binaryGroups[]? | select(.name==$NAME) | .binaryGroupKey' </tmp/bg.json)
-          [ -n "$KEY" ] && [ "$KEY" != "null" ] || { echo "❌ 그룹 '$FILE_GROUP_NAME' 없음 (콘솔에서 이름 정확히 확인)"; exit 1; }
-          echo "key=$KEY" >> $GITHUB_OUTPUT
-          echo "✅ binary-group key=$KEY"
-
-      # 2) (v1) 해당 Binary Group에 JAR 업로드
-      - name: Upload JAR to Binary Group (v1)
-        id: upload
-        env:
-          BG_KEY: ${{ steps.bg.outputs.key }}
+      # ─────────────────────────────────────────
+      # 1) 파일그룹에 app.jar 업로드 (multipart/form-data)
+      #    - 기존 동일파일명 있으면 덮어쓰기(auto) 또는 삭제 후 업로드
+      # ─────────────────────────────────────────
+      - name: Upload JAR to NHN Deploy File Group
         run: |
           set -euo pipefail
           JAR="${{ steps.jar.outputs.path }}"
-          URL="$BASE/api/v1.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/binary-group/$BG_KEY"
-          echo "POST $URL (file=$(basename "$JAR"))"
-          HTTP=$(curl -sS -w "%{http_code}" -o /tmp/up.json \
-            -X POST -F "file=@${JAR}" "$URL" || true)
-          echo "http=$HTTP"
-          head -c 400 /tmp/up.json || true; echo
-          case "$HTTP" in
-            200|201) echo "✅ 업로드 완료" ;;
-            *) echo "❌ 업로드 실패 (HTTP $HTTP)"; exit 1 ;;
-          esac
 
-      # 3) (v2) 서버그룹 배포 트리거
-      - name: Deploy (v2)
+          # (선택) 기존 파일 삭제 - 파일명이 app.jar로 고정이라면 안전하게 지우고 업로드
+          # curl -sS -X DELETE \
+          #   -H "X-TC-APP-KEY: $APPKEY" \
+          #   "$BASE/deploy/v1.0/projects/$PROJECT_ID/file-groups/$FILE_GROUP_NAME/files/app.jar" || true
+
+          # 업로드
+          # ※ 엔드포인트/헤더는 환경에 따라 v1.0/v1.1 등이 다를 수 있음. 401/404 시 문서의 경로를 확인해 조정.
+          curl -sS -X POST \
+            -H "X-TC-APP-KEY: $APPKEY" \
+            -H "Accept: application/json" \
+            -F "file=@${JAR};filename=app.jar;type=application/java-archive" \
+            "$BASE/deploy/v1.0/projects/$PROJECT_ID/file-groups/$FILE_GROUP_NAME/files"
+
+      # ─────────────────────────────────────────
+      # 2) 시나리오 실행 (서버그룹에 대해 실행)
+      #    - 시나리오 안에는: stop → 파일배포(target=/opt/piuda) → start
+      # ─────────────────────────────────────────
+      - name: Trigger Deploy Scenario
+        id: run_scn
         run: |
           set -euo pipefail
-          URL="$BASE/api/v2.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/server-group/$SERVER_GROUP_ID/deploy"
-          echo "POST $URL"
-          HTTP=$(curl -sS -w "%{http_code}" -o /tmp/deploy.json -X POST "$URL" || true)
-          echo "http=$HTTP"
-          head -c 400 /tmp/deploy.json || true; echo
-          case "$HTTP" in
-            200|202) echo "✅ 배포 트리거 완료" ;;
-            *) echo "❌ 배포 트리거 실패 (HTTP $HTTP)"; exit 1 ;;
-          esac
+          RESP=$(curl -sS -X POST \
+            -H "X-TC-APP-KEY: $APPKEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"serverGroupId\": $SERVER_GROUP_ID}" \
+            "$BASE/deploy/v1.0/projects/$PROJECT_ID/scenarios/$SCENARIO_ID/executions")
+          echo "$RESP" | jq .
+          # 실행 ID 추출 (키 이름은 환경별로 executionId/runId 등이 될 수 있음)
+          RUN_ID=$(echo "$RESP" | jq -r '.executionId // .runId // .id')
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+
+      # ─────────────────────────────────────────
+      # 3) 실행 상태 폴링 (성공/실패 대기)
+      #    - 상태 필드는 status/state/result 등 환경별 명칭이 다를 수 있어 아래 3가지를 순서로 조회
+      # ─────────────────────────────────────────
+      - name: Wait for Scenario Result
+        run: |
+          set -euo pipefail
+          RUN_ID="${{ steps.run_scn.outputs.run_id }}"
+          echo "Waiting scenario run: $RUN_ID"
+          for i in $(seq 1 60); do
+            RESP=$(curl -sS -X GET \
+              -H "X-TC-APP-KEY: $APPKEY" \
+              "$BASE/deploy/v1.0/projects/$PROJECT_ID/scenarios/$SCENARIO_ID/executions/$RUN_ID")
+            echo "$RESP" | jq .
+            STATUS=$(echo "$RESP" | jq -r '.status // .state // .result // empty')
+
+            if [[ "$STATUS" =~ ^(SUCCESS|COMPLETED|DONE)$ ]]; then
+              echo "Scenario SUCCESS"
+              exit 0
+            elif [[ "$STATUS" =~ ^(FAIL|FAILED|ERROR)$ ]]; then
+              echo "Scenario FAILED"
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "Timeout waiting scenario result"
+          exit 1
