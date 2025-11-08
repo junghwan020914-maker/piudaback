@@ -4,7 +4,7 @@ import com.example.piuda.Report.ReportRepository;
 import com.example.piuda.Notify.NotifyRepository;
 import com.example.piuda.Reserv.ReservRepository;
 import com.example.piuda.ReportPhoto.ReportPhotoRepository;
-import com.example.piuda.domain.Entity.DTO.PinResponseDTO;
+import com.example.piuda.domain.DTO.PinResponseDTO;
 import com.example.piuda.domain.Entity.Pin;
 import com.example.piuda.domain.Entity.Report;
 import com.example.piuda.domain.Entity.Trash;
@@ -31,6 +31,62 @@ public class PinService {
 
     public List<Pin> getAllPins() {
         return pinRepository.findAll();
+    }
+
+    // 초기 지도 로드용: 전체 핀 데이터(클라이언트 필터링용 요약 포함) 반환
+    public List<PinResponseDTO> getAllPinsForClient() {
+    List<Pin> pins = pinRepository.findAll();
+    return pins.stream().map(pin -> {
+        List<Report> reports = reportRepository.findByPin(pin);
+
+        var orgNames = reports.stream()
+            .map(Report::getReportName)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+
+        double totalKg = reports.stream()
+            .map(Report::getTrash)
+            .filter(Objects::nonNull)
+            .mapToDouble(t -> t.getTrashKg() != null ? t.getTrashKg() : 0.0)
+            .sum();
+        double totalL = reports.stream()
+            .map(Report::getTrash)
+            .filter(Objects::nonNull)
+            .mapToDouble(t -> t.getTrashL() != null ? t.getTrashL() : 0.0)
+            .sum();
+
+        int activityCount = reports.size();
+        LocalDate latestActivityDate = reports.stream()
+            .map(Report::getReportDate)
+            .filter(Objects::nonNull)
+            .max(LocalDate::compareTo)
+            .orElse(null);
+
+        // 초기 로드에서는 사진 경로 조회 비용을 줄이기 위해 사진은 생략하고 빈 리스트 전달
+        List<PinResponseDTO.ReportSummary> summaries = reports.stream()
+            .map(r -> new PinResponseDTO.ReportSummary(
+                r.getReportId(),
+                r.getReportTitle(),
+                r.getReportName(),
+                r.getReportDate(),
+                r.getTrash() != null ? r.getTrash().getTrashKg() : null,
+                r.getTrash() != null ? r.getTrash().getTrashL() : null,
+                r.getReportContent(),
+                java.util.List.of()
+            ))
+            .collect(Collectors.toList());
+
+        return PinResponseDTO.detailed(
+            pin,
+            orgNames,
+            totalKg,
+            totalL,
+            latestActivityDate,
+            activityCount,
+            summaries
+        );
+    }).collect(Collectors.toList());
     }
 
     // 핀 상세 조회 (PinResponseDTO 재사용)
