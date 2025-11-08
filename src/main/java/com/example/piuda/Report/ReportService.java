@@ -34,7 +34,7 @@ public class ReportService {
     private final TrashRepository trashRepository;
     private final ReportPhotoRepository reportPhotoRepository;
     
-    @Value("${file.upload.dir}")
+  //  @Value("${file.upload.dir}")
     private String uploadDir;
 
     public Long createReport(ReportRequestDTO dto, List<MultipartFile> photos) {

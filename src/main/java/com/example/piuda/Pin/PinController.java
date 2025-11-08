@@ -22,8 +22,9 @@ public class PinController {
     private final PinService pinService;
 
     @GetMapping
-    public List<Pin> getAllPins() {
-        return pinService.getAllPins();
+    public List<PinResponseDTO> getAllPins() {
+        // 전체 핀 + 집계 정보를 한번에 내려주어 프론트가 클라이언트 사이드 필터링 가능하게 함
+        return pinService.getAllPinsForClient();
     }
 
     @GetMapping("/filter")
