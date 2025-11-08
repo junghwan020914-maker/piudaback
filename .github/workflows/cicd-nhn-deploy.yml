@@ -1,4 +1,4 @@
-name: CI/CD - NHN Deploy API (v1 upload + v2 deploy)
+name: CI/CD - NHN Deploy (v2: File Group + Deploy)
 
 on:
   push:
@@ -9,17 +9,20 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # ✅ 정식 엔드포인트
+      # ✅ NHN Deploy 공용 엔드포인트 (고정)
       BASE: https://api-tcd.nhncloudservice.com
-      APPKEY: ${{ secrets.NHN_APPKEY }}           # Deploy 콘솔의 AppKey
-      ARTIFACT_ID: ${{ secrets.NHN_PROJECT_ID }}  # = artifactId (이름 혼동 주의)
+      # ✅ Secrets에 아래 3개는 반드시 채워져 있어야 함
+      APPKEY: ${{ secrets.NHN_APPKEY }}           # Deploy 콘솔 AppKey
+      ARTIFACT_ID: ${{ secrets.NHN_PROJECT_ID }}  # Deploy 콘솔 Artifact ID
       SERVER_GROUP_ID: ${{ secrets.NHN_SERVER_GROUP_ID }}
-      FILE_GROUP_NAME: ${{ secrets.NHN_FILE_GROUP_NAME }}  # 콘솔의 Binary Group 이름
+      FILE_GROUP_NAME: ${{ secrets.NHN_FILE_GROUP_NAME }} # (예: seagnal-file)
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
@@ -36,38 +39,52 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      # === v1: Binary Group 목록에서 NAME→KEY 해석 ===
-      - name: Resolve Binary Group Key by name (v1)
-        id: bg
+      # 1) File Group 목록에서 이름 → ID 찾기 (v2)
+      - name: Resolve File Group ID (v2)
+        id: fg
         run: |
           set -euo pipefail
-          RESP=$(curl -sS "$BASE/api/v1.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/binary-group")
-          echo "$RESP" | jq -r '.'
-          BG_KEY=$(echo "$RESP" | jq -r --arg NAME "$FILE_GROUP_NAME" '.binaryGroups[] | select(.name==$NAME) | .binaryGroupKey')
-          if [ -z "$BG_KEY" ] || [ "$BG_KEY" = "null" ]; then
-            echo "❌ Binary Group not found: $FILE_GROUP_NAME"
-            exit 1
-          fi
-          echo "key=$BG_KEY" >> $GITHUB_OUTPUT
+          URL="$BASE/api/v2.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/file-groups"
+          echo "GET $URL"
+          HTTP=$(curl -sS -w "%{http_code}" -o /tmp/fg.json "$URL" || true)
+          echo "http=$HTTP"
+          head -c 300 /tmp/fg.json || true; echo
+          [ "$HTTP" = "200" ] || { echo "❌ file-groups 조회 실패"; exit 1; }
+          jq -e '.' </tmp/fg.json >/dev/null || { echo "❌ JSON 아님"; exit 1; }
+          ID=$(jq -r --arg NAME "$FILE_GROUP_NAME" '.fileGroups[]? | select(.name==$NAME) | .id' </tmp/fg.json)
+          [ -n "$ID" ] && [ "$ID" != "null" ] || { echo "❌ File Group '$FILE_GROUP_NAME' 없음 (콘솔에서 생성/이름확인)"; exit 1; }
+          echo "id=$ID" >> $GITHUB_OUTPUT
+          echo "✅ file-group id=$ID"
 
-      # === v1: 바이너리 업로드 ===
-      - name: Upload JAR to Binary Group (v1)
+      # 2) JAR 업로드 (v2)
+      - name: Upload JAR to File Group (v2)
         id: upload
         env:
-          BG_KEY: ${{ steps.bg.outputs.key }}
+          FGID: ${{ steps.fg.outputs.id }}
         run: |
+          set -euo pipefail
           JAR="${{ steps.jar.outputs.path }}"
-          RESP=$(curl -sS -X POST \
-            "$BASE/api/v1.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/binary-group/$BG_KEY" \
-            -F "file=@${JAR}")
-          echo "$RESP" | jq -r '.'
+          URL="$BASE/api/v2.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/file-groups/$FGID/files"
+          echo "POST $URL  (file=$(basename "$JAR"))"
+          HTTP=$(curl -sS -w "%{http_code}" -o /tmp/up.json \
+            -X POST \
+            -F "file=@${JAR}" \
+            -F "fileName=$(basename "$JAR")" \
+            "$URL" || true)
+          echo "http=$HTTP"
+          head -c 300 /tmp/up.json || true; echo
+          [ "$HTTP" = "200" ] || [ "$HTTP" = "201" ] || { echo "❌ 업로드 실패"; exit 1; }
+          jq -e '.' </tmp/up.json >/dev/null || { echo "❌ 업로드 응답이 JSON 아님"; exit 1; }
+          FILE_ID=$(jq -r '.fileId // .id // empty' </tmp/up.json)
+          [ -n "$FILE_ID" ] || echo "ℹ️ fileId 미제공 (배포는 최신 파일그룹 사용 가정)"
 
-      # === v2: 배포 실행 ===
+      # 3) 배포 트리거 (v2)
       - name: Deploy (v2)
-        id: deploy
         run: |
-          RESP=$(curl -sS -X POST \
-            "$BASE/api/v2.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/server-group/$SERVER_GROUP_ID/deploy")
-          echo "$RESP" | jq -r '.'
-          # v2는 2024~25 문서 기준, 본 호출 자체가 트리거입니다.
-
+          set -euo pipefail
+          URL="$BASE/api/v2.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/server-group/$SERVER_GROUP_ID/deploy"
+          echo "POST $URL"
+          HTTP=$(curl -sS -w "%{http_code}" -o /tmp/deploy.json -X POST "$URL" || true)
+          echo "http=$HTTP"
+          head -c 300 /tmp/deploy.json || true; echo
+          [ "$HTTP" = "200" ] || [ "$HTTP" = "202" ] || { echo "❌ 배포 트리거 실패"; exit 1; }
