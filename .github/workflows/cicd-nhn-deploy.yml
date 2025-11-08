@@ -1,0 +1,126 @@
+name: CI/CD - NHN Deploy API (by group name)
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      BASE: ${{ secrets.NHN_API_BASE }}
+      APPKEY: ${{ secrets.NHN_APPKEY }}
+      PROJECT_ID: ${{ secrets.NHN_PROJECT_ID }}
+      SERVER_GROUP_ID: ${{ secrets.NHN_SERVER_GROUP_ID }}
+      SCENARIO_ID: ${{ secrets.NHN_SCENARIO_ID }}
+      FILE_GROUP_NAME: ${{ secrets.NHN_FILE_GROUP_NAME }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build (Gradle)
+        run: |
+          chmod +x ./gradlew
+          ./gradlew clean bootJar --no-daemon
+
+      - name: Find JAR
+        id: jar
+        run: echo "path=$(ls -1 build/libs/*.jar | head -n1)" >> $GITHUB_OUTPUT
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Prepare auth header
+        id: auth
+        run: |
+          if [ -n "${{ secrets.NHN_TOKEN }}" ]; then
+            echo 'AUTH=Authorization: Bearer ${{ secrets.NHN_TOKEN }}' >> $GITHUB_OUTPUT
+          else
+            echo 'AUTH=' >> $GITHUB_OUTPUT
+          fi
+
+      # 1) 파일그룹 목록에서 이름으로 ID 찾기
+      - name: Resolve File Group ID by name
+        id: fg
+        run: |
+          RESP=$(curl -sS -H "X-APP-KEY: $APPKEY" ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
+            "$BASE/deploy/v2.0/projects/$PROJECT_ID/file-groups")
+          echo "$RESP" | jq -r '.'
+          FGID=$(echo "$RESP" | jq -r ".fileGroups[] | select(.name==\"$FILE_GROUP_NAME\") | .id")
+          if [ -z "$FGID" ]; then
+            echo "File group '$FILE_GROUP_NAME' not found"
+            exit 1
+          fi
+          echo "id=$FGID" >> $GITHUB_OUTPUT
+
+      # 2) JAR 업로드 (파일그룹 ID 사용)
+      - name: Upload JAR to File Group
+        id: upload
+        env:
+          FGID: ${{ steps.fg.outputs.id }}
+        run: |
+          JAR="${{ steps.jar.outputs.path }}"
+          RESP=$(curl -sS -X POST \
+            -H "X-APP-KEY: $APPKEY" ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
+            -H "Content-Type: multipart/form-data" \
+            -F "file=@${JAR}" \
+            -F "fileName=app.jar" \
+            "$BASE/deploy/v2.0/projects/$PROJECT_ID/file-groups/$FGID/files")
+          echo "$RESP" | jq -r '.'
+          FILE_ID=$(echo "$RESP" | jq -r '.fileId // .id // empty')
+          if [ -z "$FILE_ID" ]; then
+            echo "Upload failed or unexpected response"
+            exit 1
+          fi
+          echo "file_id=$FILE_ID" >> $GITHUB_OUTPUT
+
+      # 3) 시나리오 실행
+      #    ─ File Deploy Task를 "해당 파일그룹의 최신 파일 사용"으로 만들어두면 FILE_ID를 variables로 넘길 필요 없음.
+      #    ─ 만약 변수 받도록 구성했다면 아래 variables에 FILE_ID를 넣어 전달.
+      - name: Run Scenario
+        id: run
+        run: |
+          BODY=$(jq -n \
+            --arg sg "$SERVER_GROUP_ID" \
+            --arg sc "$SCENARIO_ID" \
+            --arg dir "/opt/piuda/" \
+            --arg name "app.jar" \
+            --arg fid "${{ steps.upload.outputs.file_id }}" \
+            '{serverGroupId:$sg, scenarioId:$sc, variables:{TARGET_DIR:$dir, TARGET_NAME:$name, FILE_ID:$fid}}')
+          START=$(curl -sS -X POST \
+            -H "X-APP-KEY: $APPKEY" ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
+            -H "Content-Type: application/json" \
+            -d "$BODY" \
+            "$BASE/deploy/v2.0/projects/$PROJECT_ID/scenarios/$SCENARIO_ID/run")
+          echo "$START" | jq -r '.'
+          EXEC_ID=$(echo "$START" | jq -r '.executionId // .id // empty')
+          if [ -z "$EXEC_ID" ]; then
+            echo "Scenario start failed"
+            exit 1
+          fi
+          echo "exec_id=$EXEC_ID" >> $GITHUB_OUTPUT
+
+      # 4) 실행 상태 대기
+      - name: Wait for Deploy Result
+        env:
+          EXEC_ID: ${{ steps.run.outputs.exec_id }}
+        run: |
+          for i in {1..60}; do
+            RESP=$(curl -sS -H "X-APP-KEY: $APPKEY" ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
+              "$BASE/deploy/v2.0/projects/$PROJECT_ID/executions/$EXEC_ID")
+            STATUS=$(echo "$RESP" | jq -r '.status // empty')
+            echo "status: $STATUS"
+            if [ "$STATUS" = "SUCCEEDED" ] || [ "$STATUS" = "SUCCESS" ]; then exit 0; fi
+            if [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "FAILURE" ]; then echo "$RESP"; exit 1; fi
+            sleep 5
+          done
+          echo "Timed out waiting for deploy execution"
+          exit 1
