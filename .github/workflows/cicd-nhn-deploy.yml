@@ -1,11 +1,9 @@
-name: CI/CD - NHN Deploy (v2:File Group + Deploy)
+name: CI/CD - NHN Deploy (v1 upload + v2 deploy)
 
 on:
   push:
-    branches: ["main"]        # 기본 main 브랜치에 push 시 실행
-  pull_request:
-    branches: ["main"]        # main 대상 PR 시에도 실행(원하면 지워도 됨)
-  workflow_dispatch:           # 수동 실행 버튼
+    branches: ["main"]
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
@@ -15,11 +13,11 @@ jobs:
     env:
       # ✅ NHN Deploy 공용 엔드포인트 (고정)
       BASE: https://api-tcd.nhncloudservice.com
-      # ✅ Secrets에 아래 값들이 반드시 있어야 함
+      # ✅ Secrets 필요값 (콘솔 값과 정확히 일치)
       APPKEY: ${{ secrets.NHN_APPKEY }}            # Deploy 콘솔 AppKey
-      ARTIFACT_ID: ${{ secrets.NHN_PROJECT_ID }}   # Deploy 콘솔 Artifact ID
+      ARTIFACT_ID: ${{ secrets.NHN_PROJECT_ID }}   # Deploy 콘솔 Artifact ID (숫자)
       SERVER_GROUP_ID: ${{ secrets.NHN_SERVER_GROUP_ID }}
-      FILE_GROUP_NAME: ${{ secrets.NHN_FILE_GROUP_NAME }} # 예: seagnal-file
+      FILE_GROUP_NAME: ${{ secrets.NHN_FILE_GROUP_NAME }} # 콘솔 그룹 이름 (대/소문자 정확히)
 
     steps:
       - name: Checkout
@@ -49,54 +47,43 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      # 1) File Group 목록에서 이름 → ID 찾기 (v2)
-      - name: Resolve File Group ID (v2)
-        id: fg
+      # 1) (v1) Binary Group 목록 조회 → 이름으로 key 얻기
+      - name: Resolve Binary Group Key (v1)
+        id: bg
         run: |
           set -euo pipefail
-          URL="$BASE/api/v2.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/file-groups"
+          URL="$BASE/api/v1.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/binary-group"
           echo "GET $URL"
-          HTTP=$(curl -sS -w "%{http_code}" -o /tmp/fg.json "$URL" || true)
+          HTTP=$(curl -sS -w "%{http_code}" -o /tmp/bg.json "$URL" || true)
           echo "http=$HTTP"
-          head -c 400 /tmp/fg.json || true; echo
-          [ "$HTTP" = "200" ] || { echo "❌ file-groups 조회 실패 (HTTP $HTTP)"; exit 1; }
-          jq -e '.' </tmp/fg.json >/dev/null || { echo "❌ JSON 아님"; exit 1; }
-          ID=$(jq -r --arg NAME "$FILE_GROUP_NAME" '.fileGroups[]? | select(.name==$NAME) | .id' </tmp/fg.json)
-          [ -n "$ID" ] && [ "$ID" != "null" ] || { echo "❌ File Group '$FILE_GROUP_NAME' 없음 (콘솔에서 생성/이름확인)"; exit 1; }
-          echo "id=$ID" >> $GITHUB_OUTPUT
-          echo "✅ file-group id=$ID"
+          head -c 400 /tmp/bg.json || true; echo
+          [ "$HTTP" = "200" ] || { echo "❌ binary-group 조회 실패 (HTTP $HTTP)"; exit 1; }
+          jq -e '.' </tmp/bg.json >/dev/null || { echo "❌ JSON 아님"; exit 1; }
+          KEY=$(jq -r --arg NAME "$FILE_GROUP_NAME" '.binaryGroups[]? | select(.name==$NAME) | .binaryGroupKey' </tmp/bg.json)
+          [ -n "$KEY" ] && [ "$KEY" != "null" ] || { echo "❌ 그룹 '$FILE_GROUP_NAME' 없음 (콘솔에서 이름 정확히 확인)"; exit 1; }
+          echo "key=$KEY" >> $GITHUB_OUTPUT
+          echo "✅ binary-group key=$KEY"
 
-      # 2) JAR 업로드 (v2)
-      - name: Upload JAR to File Group (v2)
+      # 2) (v1) 해당 Binary Group에 JAR 업로드
+      - name: Upload JAR to Binary Group (v1)
         id: upload
         env:
-          FGID: ${{ steps.fg.outputs.id }}
+          BG_KEY: ${{ steps.bg.outputs.key }}
         run: |
           set -euo pipefail
           JAR="${{ steps.jar.outputs.path }}"
-          URL="$BASE/api/v2.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/file-groups/$FGID/files"
-          echo "POST $URL  (file=$(basename "$JAR"))"
+          URL="$BASE/api/v1.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/binary-group/$BG_KEY"
+          echo "POST $URL (file=$(basename "$JAR"))"
           HTTP=$(curl -sS -w "%{http_code}" -o /tmp/up.json \
-            -X POST \
-            -F "file=@${JAR}" \
-            -F "fileName=$(basename "$JAR")" \
-            "$URL" || true)
+            -X POST -F "file=@${JAR}" "$URL" || true)
           echo "http=$HTTP"
           head -c 400 /tmp/up.json || true; echo
           case "$HTTP" in
-            200|201) : ;;
+            200|201) echo "✅ 업로드 완료" ;;
             *) echo "❌ 업로드 실패 (HTTP $HTTP)"; exit 1 ;;
           esac
-          jq -e '.' </tmp/up.json >/dev/null || { echo "❌ 업로드 응답이 JSON 아님"; exit 1; }
-          FILE_ID=$(jq -r '.fileId // .id // empty' </tmp/up.json)
-          if [ -n "$FILE_ID" ]; then
-            echo "file_id=$FILE_ID" >> $GITHUB_OUTPUT
-            echo "✅ uploaded file_id=$FILE_ID"
-          else
-            echo "ℹ️ fileId 미제공 (배포는 file-group의 최신 파일을 사용한다고 가정)"
-          fi
 
-      # 3) 배포 트리거 (v2)
+      # 3) (v2) 서버그룹 배포 트리거
       - name: Deploy (v2)
         run: |
           set -euo pipefail
