@@ -1,21 +1,25 @@
-name: CI/CD - NHN Deploy (v2: File Group + Deploy)
+name: CI/CD - NHN Deploy (v2:File Group + Deploy)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]        # 기본 main 브랜치에 push 시 실행
+  pull_request:
+    branches: ["main"]        # main 대상 PR 시에도 실행(원하면 지워도 됨)
+  workflow_dispatch:           # 수동 실행 버튼
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     env:
       # ✅ NHN Deploy 공용 엔드포인트 (고정)
       BASE: https://api-tcd.nhncloudservice.com
-      # ✅ Secrets에 아래 3개는 반드시 채워져 있어야 함
-      APPKEY: ${{ secrets.NHN_APPKEY }}           # Deploy 콘솔 AppKey
-      ARTIFACT_ID: ${{ secrets.NHN_PROJECT_ID }}  # Deploy 콘솔 Artifact ID
+      # ✅ Secrets에 아래 값들이 반드시 있어야 함
+      APPKEY: ${{ secrets.NHN_APPKEY }}            # Deploy 콘솔 AppKey
+      ARTIFACT_ID: ${{ secrets.NHN_PROJECT_ID }}   # Deploy 콘솔 Artifact ID
       SERVER_GROUP_ID: ${{ secrets.NHN_SERVER_GROUP_ID }}
-      FILE_GROUP_NAME: ${{ secrets.NHN_FILE_GROUP_NAME }} # (예: seagnal-file)
+      FILE_GROUP_NAME: ${{ secrets.NHN_FILE_GROUP_NAME }} # 예: seagnal-file
 
     steps:
       - name: Checkout
@@ -29,12 +33,18 @@ jobs:
 
       - name: Build (Gradle)
         run: |
+          set -euo pipefail
           chmod +x ./gradlew
           ./gradlew clean bootJar --no-daemon
 
       - name: Find JAR
         id: jar
-        run: echo "path=$(ls -1 build/libs/*.jar | head -n1)" >> $GITHUB_OUTPUT
+        run: |
+          set -euo pipefail
+          FILE=$(ls -1 build/libs/*.jar | head -n1)
+          [ -n "$FILE" ] || { echo "❌ JAR not found under build/libs"; exit 1; }
+          echo "path=$FILE" >> $GITHUB_OUTPUT
+          echo "✅ JAR: $FILE"
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -48,8 +58,8 @@ jobs:
           echo "GET $URL"
           HTTP=$(curl -sS -w "%{http_code}" -o /tmp/fg.json "$URL" || true)
           echo "http=$HTTP"
-          head -c 300 /tmp/fg.json || true; echo
-          [ "$HTTP" = "200" ] || { echo "❌ file-groups 조회 실패"; exit 1; }
+          head -c 400 /tmp/fg.json || true; echo
+          [ "$HTTP" = "200" ] || { echo "❌ file-groups 조회 실패 (HTTP $HTTP)"; exit 1; }
           jq -e '.' </tmp/fg.json >/dev/null || { echo "❌ JSON 아님"; exit 1; }
           ID=$(jq -r --arg NAME "$FILE_GROUP_NAME" '.fileGroups[]? | select(.name==$NAME) | .id' </tmp/fg.json)
           [ -n "$ID" ] && [ "$ID" != "null" ] || { echo "❌ File Group '$FILE_GROUP_NAME' 없음 (콘솔에서 생성/이름확인)"; exit 1; }
@@ -72,11 +82,19 @@ jobs:
             -F "fileName=$(basename "$JAR")" \
             "$URL" || true)
           echo "http=$HTTP"
-          head -c 300 /tmp/up.json || true; echo
-          [ "$HTTP" = "200" ] || [ "$HTTP" = "201" ] || { echo "❌ 업로드 실패"; exit 1; }
+          head -c 400 /tmp/up.json || true; echo
+          case "$HTTP" in
+            200|201) : ;;
+            *) echo "❌ 업로드 실패 (HTTP $HTTP)"; exit 1 ;;
+          esac
           jq -e '.' </tmp/up.json >/dev/null || { echo "❌ 업로드 응답이 JSON 아님"; exit 1; }
           FILE_ID=$(jq -r '.fileId // .id // empty' </tmp/up.json)
-          [ -n "$FILE_ID" ] || echo "ℹ️ fileId 미제공 (배포는 최신 파일그룹 사용 가정)"
+          if [ -n "$FILE_ID" ]; then
+            echo "file_id=$FILE_ID" >> $GITHUB_OUTPUT
+            echo "✅ uploaded file_id=$FILE_ID"
+          else
+            echo "ℹ️ fileId 미제공 (배포는 file-group의 최신 파일을 사용한다고 가정)"
+          fi
 
       # 3) 배포 트리거 (v2)
       - name: Deploy (v2)
@@ -86,5 +104,8 @@ jobs:
           echo "POST $URL"
           HTTP=$(curl -sS -w "%{http_code}" -o /tmp/deploy.json -X POST "$URL" || true)
           echo "http=$HTTP"
-          head -c 300 /tmp/deploy.json || true; echo
-          [ "$HTTP" = "200" ] || [ "$HTTP" = "202" ] || { echo "❌ 배포 트리거 실패"; exit 1; }
+          head -c 400 /tmp/deploy.json || true; echo
+          case "$HTTP" in
+            200|202) echo "✅ 배포 트리거 완료" ;;
+            *) echo "❌ 배포 트리거 실패 (HTTP $HTTP)"; exit 1 ;;
+          esac
