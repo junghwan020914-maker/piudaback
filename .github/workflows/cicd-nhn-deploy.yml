@@ -46,8 +46,31 @@ jobs:
           else
             echo 'AUTH=' >> $GITHUB_OUTPUT
           fi
+      
 
       # 1) 파일그룹 목록에서 이름으로 ID 찾기
+      - name: Debug & Fix BASE
+        id: fixbase
+        run: |
+          echo "RAW=[${BASE}]"
+          # 앞뒤 공백/개행 제거
+          BASE_TRIMMED="$(printf '%s' "$BASE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          # 끝의 / 제거
+          BASE_TRIMMED="${BASE_TRIMMED%/}"
+          # 스킴 없으면 https:// 붙이기
+          if ! echo "$BASE_TRIMMED" | grep -qiE '^https?://'; then
+           BASE_TRIMMED="https://$BASE_TRIMMED"
+          fi
+          echo "FIXED=[${BASE_TRIMMED}]"
+          echo "fixed=${BASE_TRIMMED}" >> $GITHUB_OUTPUT
+
+          - name: Ping Deploy API (DNS/네트워크 확인)
+            run: |
+              echo "curl to [${
+                { steps.fixbase.outputs.fixed }
+              }/deploy/v2.0/health]"
+              curl -sS -I "${{ steps.fixbase.outputs.fixed }}/deploy/v2.0/health" || true
+
       - name: Resolve File Group ID by name
         id: fg
         run: |
