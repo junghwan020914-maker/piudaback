@@ -4,12 +4,12 @@ import com.example.piuda.Pin.PinRepository;
 import com.example.piuda.ReportPhoto.ReportPhotoRepository;
 import com.example.piuda.Trash.TrashRepository;
 import com.example.piuda.domain.DTO.ReportRequestDTO;
+import com.example.piuda.domain.DTO.ReportResponseDTO;
 import com.example.piuda.domain.Entity.Pin;
 import com.example.piuda.domain.Entity.Report;
 import com.example.piuda.domain.Entity.ReportPhoto;
 import com.example.piuda.domain.Entity.Trash;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -57,13 +58,18 @@ public class ReportService {
             trashBuilder.trashKg(0.0);
         }
         
-        // 선택적 쓰레기 종류별 개수 설정
-        Trash trash = trashBuilder
-                .trashPet(dto.getTrashPlastic())
-                .trashBag(dto.getTrashVinyl())
-                .trashGlass(dto.getTrashGlass())
-                .trashCan(dto.getTrashCan())
-                .build();
+    // 선택적 쓰레기 종류별 개수 설정 (DTO 필드명을 엔티티와 동일하게 사용)
+    Trash trash = trashBuilder
+        .trashPet(dto.getTrashPet())
+        .trashBag(dto.getTrashBag())
+        .trashNet(dto.getTrashNet())
+        .trashGlass(dto.getTrashGlass())
+        .trashCan(dto.getTrashCan())
+        .trashRope(dto.getTrashRope())
+        .trashCloth(dto.getTrashCloth())
+        .trashElec(dto.getTrashElec())
+        .trashEtc(dto.getTrashEtc())
+        .build();
         
         trashRepository.save(trash);
 
@@ -101,6 +107,18 @@ public class ReportService {
         return savedReport.getReportId();
     }
     
+    @Transactional(readOnly = true)
+    public List<ReportResponseDTO> getAllReportsWithPhotos() {
+        List<Report> reports = reportRepository.findAll();
+        return reports.stream().map(report -> {
+            List<ReportPhoto> photos = reportPhotoRepository.findByReport(report);
+            List<String> photoUrls = photos.stream()
+                                           .map(ReportPhoto::getRphotoPath)
+                                           .collect(Collectors.toList());
+            return new ReportResponseDTO(report, photoUrls);
+        }).collect(Collectors.toList());
+    }
+
     private String savePhotoFile(MultipartFile photo) throws IOException {
         // 업로드 디렉토리가 없으면 생성
         Path uploadPath = Paths.get(uploadDir);

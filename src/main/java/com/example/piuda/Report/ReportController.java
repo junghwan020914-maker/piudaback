@@ -1,6 +1,7 @@
 package com.example.piuda.Report;
 
 import com.example.piuda.domain.DTO.ReportRequestDTO;
+import com.example.piuda.domain.DTO.ReportResponseDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -31,5 +32,10 @@ public class ReportController {
         }
 
         return ResponseEntity.ok(reportService.createReport(reportRequestDTO, photos));
+    }
+
+    @GetMapping
+    public ResponseEntity<List<ReportResponseDTO>> getAllReports() {
+        return ResponseEntity.ok(reportService.getAllReportsWithPhotos());
     }
 }
