@@ -47,30 +47,24 @@ public class ReportService {
                 .build();
         pinRepository.save(pin);
 
-        // 2. Trash 엔티티 생성 (kg 또는 L 단위에 따라 저장)
+        // 2. Trash 엔티티 생성 (kg, L 분리)
         Trash.TrashBuilder trashBuilder = Trash.builder();
-        
-        if ("kg".equalsIgnoreCase(dto.getTrashUnit())) {
-            trashBuilder.trashKg(dto.getTrashTotal());
-            trashBuilder.trashL(0.0);
-        } else if ("L".equalsIgnoreCase(dto.getTrashUnit())) {
-            trashBuilder.trashL(dto.getTrashTotal());
-            trashBuilder.trashKg(0.0);
-        }
-        
-    // 선택적 쓰레기 종류별 개수 설정 (DTO 필드명을 엔티티와 동일하게 사용)
-    Trash trash = trashBuilder
-        .trashPet(dto.getTrashPet())
-        .trashBag(dto.getTrashBag())
-        .trashNet(dto.getTrashNet())
-        .trashGlass(dto.getTrashGlass())
-        .trashCan(dto.getTrashCan())
-        .trashRope(dto.getTrashRope())
-        .trashCloth(dto.getTrashCloth())
-        .trashElec(dto.getTrashElec())
-        .trashEtc(dto.getTrashEtc())
-        .build();
-        
+        trashBuilder.trashKg(dto.getTrashKg() != null ? dto.getTrashKg() : 0.0);
+        trashBuilder.trashL(dto.getTrashL() != null ? dto.getTrashL() : 0.0);
+
+        // 선택적 쓰레기 종류별 개수 설정 (DTO 필드명을 엔티티와 동일하게 사용)
+        Trash trash = trashBuilder
+            .trashPet(dto.getTrashPet())
+            .trashBag(dto.getTrashBag())
+            .trashNet(dto.getTrashNet())
+            .trashGlass(dto.getTrashGlass())
+            .trashCan(dto.getTrashCan())
+            .trashRope(dto.getTrashRope())
+            .trashCloth(dto.getTrashCloth())
+            .trashElec(dto.getTrashElec())
+            .trashEtc(dto.getTrashEtc())
+            .build();
+
         trashRepository.save(trash);
 
         // 3. Report 엔티티 생성

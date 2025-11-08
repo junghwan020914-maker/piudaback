@@ -25,9 +25,10 @@ public class ReportRequestDTO {
     private Double pinX;                  // 위도
     private Double pinY;                  // 경도
 
-    // 전체 쓰레기 양 + 단위 (kg 또는 L)
-    private Double trashTotal;            // 전체 무게/부피 값
-    private String trashUnit;             // 단위: kg / L
+
+    // 전체 쓰레기 양 (kg, L 분리)
+    private Double trashKg;               // kg 단위 전체 무게
+    private Double trashL;                // L 단위 전체 부피
 
     // 세부 쓰레기 분류 - Trash 엔티티 필드명과 동일하게 수정
     private Integer trashPet;             // 페트병 개수
