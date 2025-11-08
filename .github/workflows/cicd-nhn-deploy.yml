@@ -1,4 +1,4 @@
-name: CI/CD - NHN Deploy API (by group name)
+name: CI/CD - NHN Deploy API (v1 upload + v2 deploy)
 
 on:
   push:
@@ -9,19 +9,17 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      BASE: ${{ secrets.NHN_API_BASE }}           # ex) https://api-kr.nhncloudservice.com
-      APPKEY: ${{ secrets.NHN_APPKEY }}
-      PROJECT_ID: ${{ secrets.NHN_PROJECT_ID }}
+      # ✅ 정식 엔드포인트
+      BASE: https://api-tcd.nhncloudservice.com
+      APPKEY: ${{ secrets.NHN_APPKEY }}           # Deploy 콘솔의 AppKey
+      ARTIFACT_ID: ${{ secrets.NHN_PROJECT_ID }}  # = artifactId (이름 혼동 주의)
       SERVER_GROUP_ID: ${{ secrets.NHN_SERVER_GROUP_ID }}
-      SCENARIO_ID: ${{ secrets.NHN_SCENARIO_ID }}
-      FILE_GROUP_NAME: ${{ secrets.NHN_FILE_GROUP_NAME }}
+      FILE_GROUP_NAME: ${{ secrets.NHN_FILE_GROUP_NAME }}  # 콘솔의 Binary Group 이름
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
@@ -38,107 +36,38 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Prepare auth header
-        id: auth
+      # === v1: Binary Group 목록에서 NAME→KEY 해석 ===
+      - name: Resolve Binary Group Key by name (v1)
+        id: bg
         run: |
-          if [ -n "${{ secrets.NHN_TOKEN }}" ]; then
-            echo 'AUTH=Authorization: Bearer ${{ secrets.NHN_TOKEN }}' >> $GITHUB_OUTPUT
-          else
-            echo 'AUTH=' >> $GITHUB_OUTPUT
-          fi
-
-      # === BASE 정규화: 앞뒤 공백 제거, 끝 / 제거, https:// 자동 부착 ===
-      - name: Normalize BASE (trim/ensure https/drop trailing slash)
-        run: |
-          python3 - <<'PY' >> $GITHUB_ENV
-          import os
-          b = (os.environ.get('BASE') or '').strip()
-          if b.endswith('/'): b = b[:-1]
-          if not (b.startswith('http://') or b.startswith('https://')):
-              b = 'https://' + b
-          print(f"BASE_FIXED={b}")
-          PY
-
-      - name: Debug BASE_FIXED
-        run: echo "BASE_FIXED=[$BASE_FIXED]"   # 마스킹돼서 값은 ***로 보임
-
-      # === 1) 파일그룹 이름으로 ID 조회 ===
-      - name: Resolve File Group ID by name
-        id: fg
-        run: |
-          RESP=$(curl -sS -H "X-APP-KEY: $APPKEY" \
-            ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
-            "$BASE_FIXED/deploy/v2.0/projects/$PROJECT_ID/file-groups")
+          set -euo pipefail
+          RESP=$(curl -sS "$BASE/api/v1.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/binary-group")
           echo "$RESP" | jq -r '.'
-          FGID=$(echo "$RESP" | jq -r ".fileGroups[] | select(.name==\"$FILE_GROUP_NAME\") | .id")
-          if [ -z "$FGID" ]; then
-            echo "File group '$FILE_GROUP_NAME' not found"
+          BG_KEY=$(echo "$RESP" | jq -r --arg NAME "$FILE_GROUP_NAME" '.binaryGroups[] | select(.name==$NAME) | .binaryGroupKey')
+          if [ -z "$BG_KEY" ] || [ "$BG_KEY" = "null" ]; then
+            echo "❌ Binary Group not found: $FILE_GROUP_NAME"
             exit 1
           fi
-          echo "id=$FGID" >> $GITHUB_OUTPUT
+          echo "key=$BG_KEY" >> $GITHUB_OUTPUT
 
-      # === 2) JAR 업로드 ===
-      - name: Upload JAR to File Group
+      # === v1: 바이너리 업로드 ===
+      - name: Upload JAR to Binary Group (v1)
         id: upload
         env:
-          FGID: ${{ steps.fg.outputs.id }}
+          BG_KEY: ${{ steps.bg.outputs.key }}
         run: |
           JAR="${{ steps.jar.outputs.path }}"
           RESP=$(curl -sS -X POST \
-            -H "X-APP-KEY: $APPKEY" \
-            ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
-            -H "Content-Type: multipart/form-data" \
-            -F "file=@${JAR}" \
-            -F "fileName=app.jar" \
-            "$BASE_FIXED/deploy/v2.0/projects/$PROJECT_ID/file-groups/$FGID/files")
+            "$BASE/api/v1.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/binary-group/$BG_KEY" \
+            -F "file=@${JAR}")
           echo "$RESP" | jq -r '.'
-          FILE_ID=$(echo "$RESP" | jq -r '.fileId // .id // empty')
-          if [ -z "$FILE_ID" ]; then
-            echo "Upload failed or unexpected response"
-            exit 1
-          fi
-          echo "file_id=$FILE_ID" >> $GITHUB_OUTPUT
 
-      # === 3) 시나리오 실행 ===
-      # File Deploy Task가 "최신 업로드 사용"이면 variables에서 FILE_ID 제외해도 됨.
-      - name: Run Scenario
-        id: run
+      # === v2: 배포 실행 ===
+      - name: Deploy (v2)
+        id: deploy
         run: |
-          BODY=$(jq -n \
-            --arg sg "$SERVER_GROUP_ID" \
-            --arg sc "$SCENARIO_ID" \
-            --arg dir "/opt/piuda/" \
-            --arg name "app.jar" \
-            --arg fid "${{ steps.upload.outputs.file_id }}" \
-            '{serverGroupId:$sg, scenarioId:$sc, variables:{TARGET_DIR:$dir, TARGET_NAME:$name, FILE_ID:$fid}}')
-          START=$(curl -sS -X POST \
-            -H "X-APP-KEY: $APPKEY" \
-            ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
-            -H "Content-Type: application/json" \
-            -d "$BODY" \
-            "$BASE_FIXED/deploy/v2.0/projects/$PROJECT_ID/scenarios/$SCENARIO_ID/run")
-          echo "$START" | jq -r '.'
-          EXEC_ID=$(echo "$START" | jq -r '.executionId // .id // empty')
-          if [ -z "$EXEC_ID" ]; then
-            echo "Scenario start failed"
-            exit 1
-          fi
-          echo "exec_id=$EXEC_ID" >> $GITHUB_OUTPUT
+          RESP=$(curl -sS -X POST \
+            "$BASE/api/v2.0/projects/$APPKEY/artifacts/$ARTIFACT_ID/server-group/$SERVER_GROUP_ID/deploy")
+          echo "$RESP" | jq -r '.'
+          # v2는 2024~25 문서 기준, 본 호출 자체가 트리거입니다.
 
-      # === 4) 실행 상태 대기 ===
-      - name: Wait for Deploy Result
-        env:
-          EXEC_ID: ${{ steps.run.outputs.exec_id }}
-        run: |
-          for i in {1..60}; do
-            RESP=$(curl -sS -H "X-APP-KEY: $APPKEY" \
-              ${{ steps.auth.outputs.AUTH && format('-H "{0}"', steps.auth.outputs.AUTH) }} \
-              "$BASE_FIXED/deploy/v2.0/projects/$PROJECT_ID/executions/$EXEC_ID")
-            STATUS=$(echo "$RESP" | jq -r '.status // empty')
-            echo "status: $STATUS"
-            if [ "$STATUS" = "SUCCEEDED" ] || [ "$STATUS" = "SUCCESS" ]; then exit 0; fi
-            if [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "FAILURE" ]; then echo "$RESP"; exit 1; fi
-            sleep 5
-          done
-          echo "Timed out waiting for deploy execution"
-          exit 1
