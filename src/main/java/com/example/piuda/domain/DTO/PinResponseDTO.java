@@ -71,6 +71,9 @@ public class PinResponseDTO {
     // 빨간 핀(RED)일 때만 포함: 제보 정보
     private List<NotifySummary> notifies;
 
+    // 파란 핀(BLUE)일 때만 포함: 예약 정보 (현재 날짜 이후)
+    private List<ReservSummary> reservations;
+
     // 상세 응답용 생성자 (리포트 요약, 제보 요약 포함)
     public static PinResponseDTO detailed(Pin pin,
                                           List<String> organizationNames,
@@ -79,12 +82,14 @@ public class PinResponseDTO {
                                           LocalDate latestActivityDate,
                                           Integer activityCount,
                                           List<ReportSummary> reports,
-                                          List<NotifySummary> notifies) {
+                                          List<NotifySummary> notifies,
+                                          List<ReservSummary> reservations) {
         PinResponseDTO dto = new PinResponseDTO(pin, organizationNames, totalTrashKg, totalTrashL);
         dto.latestActivityDate = latestActivityDate;
         dto.activityCount = activityCount;
         dto.reports = reports;
         dto.notifies = notifies;
+        dto.reservations = reservations;
         return dto;
     }
 
@@ -94,5 +99,15 @@ public class PinResponseDTO {
         private Long notifyId;
         private String content;
         private List<String> photoUrls;
+    }
+
+    @Getter
+    @AllArgsConstructor
+    public static class ReservSummary {
+        private Long reservId;
+        private String reservTitle;
+        private String reservOrg;
+        private LocalDate reservDate;
+        private Integer reservPeople;
     }
 }

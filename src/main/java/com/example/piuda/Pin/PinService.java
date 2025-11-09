@@ -34,6 +34,32 @@ public class PinService {
         return pinRepository.findAll();
     }
 
+    // 일정 거리 내 존재하는 핀 반환 (있으면 Optional로 반환)
+    public Optional<Pin> findNearbyPin(double x, double y, double distanceMeters) {
+        List<Pin> pins = pinRepository.findAll();
+        for (Pin pin : pins) {
+            double dx = pin.getPinX() - x;
+            double dy = pin.getPinY() - y;
+            double dist = Math.sqrt(dx * dx + dy * dy) * 111_000; // 위도/경도 -> m 변환(간략)
+            if (dist < distanceMeters) return Optional.of(pin);
+        }
+        return Optional.empty();
+    }
+
+    // Report 등에서 사용하는 핀 확보: 근처에 있으면 기존 핀 반환, 없으면 WHITE 새 핀 생성
+    @Transactional
+    public Pin getOrCreateWhitePin(double x, double y, double distanceMeters) {
+        Optional<Pin> near = findNearbyPin(x, y, distanceMeters);
+        if (near.isPresent()) return near.get();
+        Pin pin = Pin.builder()
+                .pinX(x)
+                .pinY(y)
+                .pinCreatedAt(LocalDateTime.now())
+                .pinColor(Pin.PinColor.WHITE)
+                .build();
+        return pinRepository.save(pin);
+    }
+
     // 초기 지도 로드용: 전체 핀 데이터(클라이언트 필터링용 요약 포함) 반환
     public List<PinResponseDTO> getAllPinsForClient() {
         List<Pin> pins = pinRepository.findAll();
@@ -81,7 +107,7 @@ public class PinService {
                 );
             }).collect(Collectors.toList());
 
-            // 3) 빨간 핀(RED)인 경우 ACCEPT 상태 제보 + 사진 URL 포함
+        // 3) 빨간 핀(RED)인 경우 ACCEPT 상태 제보 + 사진 URL 포함
             List<PinResponseDTO.NotifySummary> notifySummaries = null;
             if (pin.getPinColor() == Pin.PinColor.RED) {
                 var notifies = notifyRepository.findByPinAndNotifyStatus(pin, com.example.piuda.domain.Entity.Notify.NotifyStatus.ACCEPT);
@@ -99,7 +125,24 @@ public class PinService {
                 }).collect(Collectors.toList());
             }
 
-            // 4) 상세 형태 DTO 반환 (요약 요청에서도 동일 구조 유지)
+        // 4) 파란 핀(BLUE)인 경우, 오늘 이후 예약만 포함
+        List<PinResponseDTO.ReservSummary> reservSummaries = null;
+        if (pin.getPinColor() == Pin.PinColor.BLUE) {
+        LocalDate today = LocalDate.now();
+        var reservs = reservRepository.findByPin(pin);
+        reservSummaries = reservs.stream()
+            .filter(rv -> rv.getReservDate() != null && rv.getReservDate().isAfter(today))
+            .map(rv -> new PinResponseDTO.ReservSummary(
+                rv.getReservId(),
+                rv.getReservTitle(),
+                rv.getReservOrg(),
+                rv.getReservDate(),
+                rv.getReservPeople()
+            ))
+            .collect(Collectors.toList());
+        }
+
+        // 5) 상세 형태 DTO 반환 (요약 요청에서도 동일 구조 유지)
             return PinResponseDTO.detailed(
                     pin,
                     orgNames,
@@ -107,8 +150,9 @@ public class PinService {
                     totalL,
                     latestActivityDate,
                     activityCount,
-                    reportSummaries,
-                    notifySummaries
+            reportSummaries,
+            notifySummaries,
+            reservSummaries
             );
         }).collect(Collectors.toList());
     }
@@ -180,6 +224,23 @@ public class PinService {
         }).collect(Collectors.toList());
     }
 
+        // BLUE 핀: 오늘 이후 예약만 포함
+        List<PinResponseDTO.ReservSummary> reservSummaries = null;
+        if (pin.getPinColor() == Pin.PinColor.BLUE) {
+            LocalDate today = LocalDate.now();
+            var reservs = reservRepository.findByPin(pin);
+            reservSummaries = reservs.stream()
+                    .filter(rv -> rv.getReservDate() != null && rv.getReservDate().isAfter(today))
+                    .map(rv -> new PinResponseDTO.ReservSummary(
+                            rv.getReservId(),
+                            rv.getReservTitle(),
+                            rv.getReservOrg(),
+                            rv.getReservDate(),
+                            rv.getReservPeople()
+                    ))
+                    .collect(Collectors.toList());
+        }
+
         return PinResponseDTO.detailed(
             pin,
             orgNames,
@@ -188,7 +249,8 @@ public class PinService {
             latestActivityDate,
             activityCount,
             summaries,
-            notifySummaries
+            notifySummaries,
+            reservSummaries
         );
     }
 
