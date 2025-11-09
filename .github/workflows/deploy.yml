@@ -27,7 +27,12 @@ jobs:
         run: docker build -t piuda:latest .
 
       - name: Save image to tar
-        run: docker save -o piuda.tar piuda:latest
+        run: |
+          # save in current workspace and ensure readable by subsequent steps
+          docker save -o ./piuda.tar piuda:latest
+          ls -l ./piuda.tar
+          chmod 644 ./piuda.tar
+          ls -l ./piuda.tar
 
       - name: Upload tar to server via SCP
         uses: appleboy/scp-action@v0.1.7
