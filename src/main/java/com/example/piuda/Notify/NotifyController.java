@@ -29,9 +29,8 @@ public class NotifyController {
             @RequestPart("payload") NotifyCreateRequestDTO payload,
             @RequestPart(value = "photos", required = false) List<MultipartFile> photos) {
         Long notifyId = notifyService.createAndAccept(payload, photos);
-        // 핀 ID와 사진 URL 목록 조회가 필요하다면 리포지토리 조회를 추가적으로 수행할 수 있으나,
-        // 여기서는 간단히 notifyId만 반환하고, 클라이언트는 별도 조회 API로 상세 얻도록 한다.
-        // 필요 시 확장 가능.
-        return ResponseEntity.ok(new NotifyCreateResponseDTO(notifyId, null, "ACCEPT", null));
+        // notifyId로 핀ID, 사진URL 목록 조회
+        NotifyCreateResponseDTO dto = notifyService.buildCreateResponse(notifyId);
+        return ResponseEntity.ok(dto);
     }
 }

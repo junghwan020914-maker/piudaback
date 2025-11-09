@@ -28,6 +28,7 @@ public class PinService {
     private final NotifyRepository notifyRepository;
     private final ReservRepository reservRepository;
     private final ReportPhotoRepository reportPhotoRepository;
+    private final com.example.piuda.NotifyPhoto.NotifyPhotoRepository notifyPhotoRepository;
 
     public List<Pin> getAllPins() {
         return pinRepository.findAll();
@@ -35,10 +36,89 @@ public class PinService {
 
     // 초기 지도 로드용: 전체 핀 데이터(클라이언트 필터링용 요약 포함) 반환
     public List<PinResponseDTO> getAllPinsForClient() {
-    List<Pin> pins = pinRepository.findAll();
-    return pins.stream().map(pin -> {
-        List<Report> reports = reportRepository.findByPin(pin);
+        List<Pin> pins = pinRepository.findAll();
+        return pins.stream().map(pin -> {
+            // 1) 관련 Report 조회 및 집계
+            List<Report> reports = reportRepository.findByPin(pin);
+            var orgNames = reports.stream()
+                    .map(Report::getReportName)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.toList());
+            double totalKg = reports.stream()
+                    .map(Report::getTrash)
+                    .filter(Objects::nonNull)
+                    .mapToDouble(t -> t.getTrashKg() != null ? t.getTrashKg() : 0.0)
+                    .sum();
+            double totalL = reports.stream()
+                    .map(Report::getTrash)
+                    .filter(Objects::nonNull)
+                    .mapToDouble(t -> t.getTrashL() != null ? t.getTrashL() : 0.0)
+                    .sum();
+            int activityCount = reports.size();
+            LocalDate latestActivityDate = reports.stream()
+                    .map(Report::getReportDate)
+                    .filter(Objects::nonNull)
+                    .max(LocalDate::compareTo)
+                    .orElse(null);
 
+            // 2) Report 요약 생성 (trashKg, trashL, 사진 경로 포함)
+            List<PinResponseDTO.ReportSummary> reportSummaries = reports.stream().map(r -> {
+                var photos = reportPhotoRepository.findByReport(r);
+                List<String> photoPaths = photos.stream()
+                        .map(p -> p.getRphotoPath())
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
+                return new PinResponseDTO.ReportSummary(
+                        r.getReportId(),
+                        r.getReportTitle(),
+                        r.getReportName(),
+                        r.getReportDate(),
+                        r.getTrash() != null ? r.getTrash().getTrashKg() : null,
+                        r.getTrash() != null ? r.getTrash().getTrashL() : null,
+                        r.getReportContent(),
+                        photoPaths
+                );
+            }).collect(Collectors.toList());
+
+            // 3) 빨간 핀(RED)인 경우 ACCEPT 상태 제보 + 사진 URL 포함
+            List<PinResponseDTO.NotifySummary> notifySummaries = null;
+            if (pin.getPinColor() == Pin.PinColor.RED) {
+                var notifies = notifyRepository.findByPinAndNotifyStatus(pin, com.example.piuda.domain.Entity.Notify.NotifyStatus.ACCEPT);
+                notifySummaries = notifies.stream().map(n -> {
+                    var nPhotos = notifyPhotoRepository.findByNotify(n);
+                    List<String> nPhotoUrls = nPhotos.stream()
+                            .map(np -> np.getNphotoPath())
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toList());
+                    return new PinResponseDTO.NotifySummary(
+                            n.getNotifyId(),
+                            n.getNotifyContent(),
+                            nPhotoUrls
+                    );
+                }).collect(Collectors.toList());
+            }
+
+            // 4) 상세 형태 DTO 반환 (요약 요청에서도 동일 구조 유지)
+            return PinResponseDTO.detailed(
+                    pin,
+                    orgNames,
+                    totalKg,
+                    totalL,
+                    latestActivityDate,
+                    activityCount,
+                    reportSummaries,
+                    notifySummaries
+            );
+        }).collect(Collectors.toList());
+    }
+
+    // 핀 상세 조회 (PinResponseDTO 재사용)
+    public PinResponseDTO getPinDetails(Long pinId) {
+        Pin pin = pinRepository.findById(pinId).orElse(null);
+        if (pin == null) return null;
+
+        List<Report> reports = reportRepository.findByPin(pin);
         var orgNames = reports.stream()
             .map(Report::getReportName)
             .filter(Objects::nonNull)
@@ -55,7 +135,6 @@ public class PinService {
             .filter(Objects::nonNull)
             .mapToDouble(t -> t.getTrashL() != null ? t.getTrashL() : 0.0)
             .sum();
-
         int activityCount = reports.size();
         LocalDate latestActivityDate = reports.stream()
             .map(Report::getReportDate)
@@ -63,19 +142,43 @@ public class PinService {
             .max(LocalDate::compareTo)
             .orElse(null);
 
-        // 초기 로드에서는 사진 경로 조회 비용을 줄이기 위해 사진은 생략하고 빈 리스트 전달
         List<PinResponseDTO.ReportSummary> summaries = reports.stream()
-            .map(r -> new PinResponseDTO.ReportSummary(
-                r.getReportId(),
-                r.getReportTitle(),
-                r.getReportName(),
-                r.getReportDate(),
-                r.getTrash() != null ? r.getTrash().getTrashKg() : null,
-                r.getTrash() != null ? r.getTrash().getTrashL() : null,
-                r.getReportContent(),
-                java.util.List.of()
-            ))
+            .map(r -> {
+                var photos = reportPhotoRepository.findByReport(r);
+                List<String> paths = photos.stream()
+                    .map(p -> p.getRphotoPath())
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+                return new PinResponseDTO.ReportSummary(
+                    r.getReportId(),
+                    r.getReportTitle(),
+                    r.getReportName(),
+                    r.getReportDate(),
+                    r.getTrash() != null ? r.getTrash().getTrashKg() : null,
+                    r.getTrash() != null ? r.getTrash().getTrashL() : null,
+                    r.getReportContent(),
+                    paths
+                );
+            })
             .collect(Collectors.toList());
+
+    // 빨간 핀(RED)일 때만 해당 핀의 ACCEPT 제보 정보 포함
+    List<PinResponseDTO.NotifySummary> notifySummaries = null;
+    if (pin.getPinColor() == Pin.PinColor.RED) {
+        var notifies = notifyRepository.findByPinAndNotifyStatus(pin, com.example.piuda.domain.Entity.Notify.NotifyStatus.ACCEPT);
+        notifySummaries = notifies.stream().map(n -> {
+        var photos = notifyPhotoRepository.findByNotify(n);
+        List<String> photoUrls = photos.stream()
+            .map(np -> np.getNphotoPath())
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+        return new PinResponseDTO.NotifySummary(
+            n.getNotifyId(),
+            n.getNotifyContent(),
+            photoUrls
+        );
+        }).collect(Collectors.toList());
+    }
 
         return PinResponseDTO.detailed(
             pin,
@@ -84,69 +187,9 @@ public class PinService {
             totalL,
             latestActivityDate,
             activityCount,
-            summaries
+            summaries,
+            notifySummaries
         );
-    }).collect(Collectors.toList());
-    }
-
-    // 핀 상세 조회 (PinResponseDTO 재사용)
-    public PinResponseDTO getPinDetails(Long pinId) {
-    Pin pin = pinRepository.findById(pinId).orElse(null);
-    if (pin == null) return null;
-
-    List<Report> reports = reportRepository.findByPin(pin);
-    var orgNames = reports.stream()
-        .map(Report::getReportName)
-        .filter(Objects::nonNull)
-        .distinct()
-        .collect(Collectors.toList());
-
-    double totalKg = reports.stream()
-        .map(Report::getTrash)
-        .filter(Objects::nonNull)
-        .mapToDouble(t -> t.getTrashKg() != null ? t.getTrashKg() : 0.0)
-        .sum();
-    double totalL = reports.stream()
-        .map(Report::getTrash)
-        .filter(Objects::nonNull)
-        .mapToDouble(t -> t.getTrashL() != null ? t.getTrashL() : 0.0)
-        .sum();
-    int activityCount = reports.size();
-    LocalDate latestActivityDate = reports.stream()
-        .map(Report::getReportDate)
-        .filter(Objects::nonNull)
-        .max(LocalDate::compareTo)
-        .orElse(null);
-
-    List<PinResponseDTO.ReportSummary> summaries = reports.stream()
-        .map(r -> {
-            var photos = reportPhotoRepository.findByReport(r);
-            List<String> paths = photos.stream()
-                .map(p -> p.getRphotoPath())
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-            return new PinResponseDTO.ReportSummary(
-                r.getReportId(),
-                r.getReportTitle(),
-                r.getReportName(),
-                r.getReportDate(),
-                r.getTrash() != null ? r.getTrash().getTrashKg() : null,
-                r.getTrash() != null ? r.getTrash().getTrashL() : null,
-                r.getReportContent(),
-                paths
-            );
-        })
-        .collect(Collectors.toList());
-
-    return PinResponseDTO.detailed(
-        pin,
-        orgNames,
-        totalKg,
-        totalL,
-        latestActivityDate,
-        activityCount,
-        summaries
-    );
     }
 
 // 필터링된 핀 반환 메소드
@@ -172,8 +215,16 @@ public class PinService {
                     .filter(Objects::nonNull)
                     .distinct()
                     .collect(Collectors.toList());
-            Double totalKg = reports.stream().map(Report::getTrash).mapToDouble(Trash::getTrashKg).sum();
-            Double totalL = reports.stream().map(Report::getTrash).mapToDouble(Trash::getTrashL).sum();
+            double totalKg = reports.stream()
+                .map(Report::getTrash)
+                .filter(Objects::nonNull)
+                .mapToDouble(t -> t.getTrashKg() != null ? t.getTrashKg() : 0.0)
+                .sum();
+            double totalL = reports.stream()
+                .map(Report::getTrash)
+                .filter(Objects::nonNull)
+                .mapToDouble(t -> t.getTrashL() != null ? t.getTrashL() : 0.0)
+                .sum();
             return new PinResponseDTO(pin, orgNames, totalKg, totalL);
         }).collect(Collectors.toList());
     }

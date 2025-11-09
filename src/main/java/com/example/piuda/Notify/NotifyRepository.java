@@ -9,4 +9,5 @@ import java.util.List;
 public interface NotifyRepository extends JpaRepository<Notify, Long> {
     List<Notify> findByNotifyStatus(NotifyStatus status);
     List<Notify> findByPin(Pin pin);
+    List<Notify> findByPinAndNotifyStatus(Pin pin, Notify.NotifyStatus status);
 }

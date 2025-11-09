@@ -1,3 +1,4 @@
+// ...existing code...
 package com.example.piuda.Notify;
 
 import com.example.piuda.Pin.PinService;
@@ -98,6 +99,19 @@ public class NotifyService {
             }
         }
 
+
         return saved.getNotifyId();
+    }
+
+
+    // 제보 생성 후 응답 DTO 생성 (핀ID, 사진URL 포함)
+    @Transactional(readOnly = true)
+    public com.example.piuda.domain.DTO.NotifyCreateResponseDTO buildCreateResponse(Long notifyId) {
+        Notify notify = notifyRepository.findById(notifyId).orElseThrow();
+        Long pinId = notify.getPin() != null ? notify.getPin().getPinId() : null;
+        String status = notify.getNotifyStatus() != null ? notify.getNotifyStatus().name() : null;
+        List<String> photoUrls = notifyPhotoRepository.findByNotify(notify)
+                .stream().map(np -> np.getNphotoPath()).toList();
+        return new com.example.piuda.domain.DTO.NotifyCreateResponseDTO(notifyId, pinId, status, photoUrls);
     }
 }

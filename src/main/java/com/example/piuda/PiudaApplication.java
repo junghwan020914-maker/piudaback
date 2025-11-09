@@ -11,5 +11,4 @@ public class PiudaApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(PiudaApplication.class, args);
 	}
-
 }

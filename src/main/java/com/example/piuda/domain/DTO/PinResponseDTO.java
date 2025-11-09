@@ -1,3 +1,4 @@
+
 package com.example.piuda.domain.DTO;
 
 import com.example.piuda.domain.Entity.Pin;
@@ -67,18 +68,31 @@ public class PinResponseDTO {
         this.totalTrashL = totalTrashL;
     }
 
-    // 상세 응답용 생성자 (리포트 요약 포함)
+    // 빨간 핀(RED)일 때만 포함: 제보 정보
+    private List<NotifySummary> notifies;
+
+    // 상세 응답용 생성자 (리포트 요약, 제보 요약 포함)
     public static PinResponseDTO detailed(Pin pin,
                                           List<String> organizationNames,
                                           Double totalTrashKg,
                                           Double totalTrashL,
                                           LocalDate latestActivityDate,
                                           Integer activityCount,
-                                          List<ReportSummary> reports) {
+                                          List<ReportSummary> reports,
+                                          List<NotifySummary> notifies) {
         PinResponseDTO dto = new PinResponseDTO(pin, organizationNames, totalTrashKg, totalTrashL);
         dto.latestActivityDate = latestActivityDate;
         dto.activityCount = activityCount;
         dto.reports = reports;
+        dto.notifies = notifies;
         return dto;
+    }
+
+    @Getter
+    @AllArgsConstructor
+    public static class NotifySummary {
+        private Long notifyId;
+        private String content;
+        private List<String> photoUrls;
     }
 }
