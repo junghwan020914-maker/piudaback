@@ -1,57 +1,75 @@
-name: build-load-deploy
+name: CI/CD -> NCR push & remote deploy (host-net + local MySQL)
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
+
+env:
+  REGISTRY: ${{ secrets.NCR_REGISTRY }}
+  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
-  build-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: "17"
 
-      - name: Build JAR
+      - name: Build (Gradle)
         run: |
           chmod +x ./gradlew
-          ./gradlew clean bootJar
+          ./gradlew clean bootJar --no-daemon
 
-      - name: Build Docker image
-        run: docker build -t piuda:latest .
-
-      - name: Save image to tar
+      - name: Docker login (NCR)
         run: |
-          # save in current workspace and ensure readable by subsequent steps
-          docker save -o ./piuda.tar piuda:latest
-          ls -l ./piuda.tar
-          chmod 644 ./piuda.tar
-          ls -l ./piuda.tar
+          echo "${{ secrets.NCR_PASSWORD }}" | docker login "${{ secrets.NCR_REGISTRY }}" \
+            -u "${{ secrets.NCR_USERNAME }}" --password-stdin
+        # 필요 시 로그인 host만 주는 형태로 변경: docker login 183eb861-kr1-registry.container.nhncloud.com ...
 
-      - name: Upload tar to server via SCP
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "./piuda.tar"
-          target: "/opt/piuda/"
+      - name: Build image
+        run: |
+          docker build -t $REGISTRY:latest -t $REGISTRY:${{ env.IMAGE_TAG }} .
 
-      - name: SSH → Load image & Restart
-        uses: appleboy/ssh-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd /opt/piuda
-            docker load -i piuda.tar
-            docker compose down || true
-            docker compose up -d
-            docker image prune -f
+      - name: Push image
+        run: |
+          docker push $REGISTRY:${{ env.IMAGE_TAG }}
+          docker push $REGISTRY:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install SSH client
+        run: sudo apt-get update && sudo apt-get install -y ssh
+
+      - name: Deploy on remote host
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY:  ${{ secrets.SSH_KEY }}
+          REGISTRY: ${{ secrets.NCR_REGISTRY }}
+          NCR_USERNAME: ${{ secrets.NCR_USERNAME }}
+          NCR_PASSWORD: ${{ secrets.NCR_PASSWORD }}
+        run: |
+          set -e
+          echo "$SSH_KEY" > key.pem
+          chmod 600 key.pem
+          ssh -o StrictHostKeyChecking=no -i key.pem ${SSH_USER}@${SSH_HOST} << 'EOF'
+            set -e
+            cd /opt/app
+
+            # 레지스트리 로그인
+            echo "${NCR_PASSWORD}" | docker login "183eb861-kr1-registry.container.nhncloud.com" -u "${NCR_USERNAME}" --password-stdin || true
+
+            # 최신 이미지 pull + 재기동
+            export IMAGE="${REGISTRY}:latest"
+            docker compose pull app || true
+            docker compose up -d --pull always
+            docker image prune -f || true
+          EOF
+        shell: bash
