@@ -1,104 +1,42 @@
-name: CI/CD - NHN Deploy (file-group → scenario)
+name: Deploy Docker Image without registry (SCP tar)
 
 on:
   push:
     branches: ["main"]
+  workflow_dispatch: {}
 
 jobs:
-  build-and-deploy:
+  build-load-deploy:
     runs-on: ubuntu-latest
 
-    env:
-      BASE: ${{ secrets.NHN_API_BASE }}
-      APPKEY: ${{ secrets.NHN_APPKEY }}
-      PROJECT_ID: ${{ secrets.NHN_PROJECT_ID }}
-      SERVER_GROUP_ID: ${{ secrets.NHN_SERVER_GROUP_ID }}
-      SCENARIO_ID: ${{ secrets.NHN_SCENARIO_ID }}
-      FILE_GROUP_NAME: ${{ secrets.NHN_FILE_GROUP_NAME }}
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image locally
+        run: |
+          docker build -t piuda:latest .
+
+      - name: Save Docker image as tar
+        run: |
+          docker save -o piuda.tar piuda:latest
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.8.1
         with:
-          distribution: temurin
-          java-version: "17"
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Build (Gradle)
+      - name: Copy image.tar to server
         run: |
-          chmod +x ./gradlew
-          ./gradlew clean bootJar --no-daemon
+          scp -o StrictHostKeyChecking=no piuda.tar ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/piuda/piuda.tar
 
-      - name: Find built JAR
-        id: jar
-        run: echo "path=$(ls -1 build/libs/*.jar | head -n1)" >> $GITHUB_OUTPUT
-
-      # ─────────────────────────────────────────
-      # 1) 파일그룹에 app.jar 업로드 (multipart/form-data)
-      #    - 기존 동일파일명 있으면 덮어쓰기(auto) 또는 삭제 후 업로드
-      # ─────────────────────────────────────────
-      - name: Upload JAR to NHN Deploy File Group
+      - name: Load image and restart service
         run: |
-          set -euo pipefail
-          JAR="${{ steps.jar.outputs.path }}"
-
-          # (선택) 기존 파일 삭제 - 파일명이 app.jar로 고정이라면 안전하게 지우고 업로드
-          # curl -sS -X DELETE \
-          #   -H "X-TC-APP-KEY: $APPKEY" \
-          #   "$BASE/deploy/v1.0/projects/$PROJECT_ID/file-groups/$FILE_GROUP_NAME/files/app.jar" || true
-
-          # 업로드
-          # ※ 엔드포인트/헤더는 환경에 따라 v1.0/v1.1 등이 다를 수 있음. 401/404 시 문서의 경로를 확인해 조정.
-          curl -sS -X POST \
-            -H "X-TC-APP-KEY: $APPKEY" \
-            -H "Accept: application/json" \
-            -F "file=@${JAR};filename=app.jar;type=application/java-archive" \
-            "$BASE/deploy/v1.0/projects/$PROJECT_ID/file-groups/$FILE_GROUP_NAME/files"
-
-      # ─────────────────────────────────────────
-      # 2) 시나리오 실행 (서버그룹에 대해 실행)
-      #    - 시나리오 안에는: stop → 파일배포(target=/opt/piuda) → start
-      # ─────────────────────────────────────────
-      - name: Trigger Deploy Scenario
-        id: run_scn
-        run: |
-          set -euo pipefail
-          RESP=$(curl -sS -X POST \
-            -H "X-TC-APP-KEY: $APPKEY" \
-            -H "Content-Type: application/json" \
-            -d "{\"serverGroupId\": $SERVER_GROUP_ID}" \
-            "$BASE/deploy/v1.0/projects/$PROJECT_ID/scenarios/$SCENARIO_ID/executions")
-          echo "$RESP" | jq .
-          # 실행 ID 추출 (키 이름은 환경별로 executionId/runId 등이 될 수 있음)
-          RUN_ID=$(echo "$RESP" | jq -r '.executionId // .runId // .id')
-          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-
-      # ─────────────────────────────────────────
-      # 3) 실행 상태 폴링 (성공/실패 대기)
-      #    - 상태 필드는 status/state/result 등 환경별 명칭이 다를 수 있어 아래 3가지를 순서로 조회
-      # ─────────────────────────────────────────
-      - name: Wait for Scenario Result
-        run: |
-          set -euo pipefail
-          RUN_ID="${{ steps.run_scn.outputs.run_id }}"
-          echo "Waiting scenario run: $RUN_ID"
-          for i in $(seq 1 60); do
-            RESP=$(curl -sS -X GET \
-              -H "X-TC-APP-KEY: $APPKEY" \
-              "$BASE/deploy/v1.0/projects/$PROJECT_ID/scenarios/$SCENARIO_ID/executions/$RUN_ID")
-            echo "$RESP" | jq .
-            STATUS=$(echo "$RESP" | jq -r '.status // .state // .result // empty')
-
-            if [[ "$STATUS" =~ ^(SUCCESS|COMPLETED|DONE)$ ]]; then
-              echo "Scenario SUCCESS"
-              exit 0
-            elif [[ "$STATUS" =~ ^(FAIL|FAILED|ERROR)$ ]]; then
-              echo "Scenario FAILED"
-              exit 1
-            fi
-            sleep 5
-          done
-          echo "Timeout waiting scenario result"
-          exit 1
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} '
+            cd /opt/piuda
+            docker load -i piuda.tar
+            docker compose up -d
+            docker image prune -f
+          '
