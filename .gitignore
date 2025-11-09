@@ -7,6 +7,8 @@ build/
 
 *.yml
 
+*.pem
+
 ### STS ###
 .apt_generated
 .classpath
