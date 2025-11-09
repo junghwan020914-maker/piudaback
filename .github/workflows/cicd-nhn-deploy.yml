@@ -61,7 +61,7 @@ jobs:
       # 2) 시나리오 실행 (서버그룹에 대해 실행)
       #    - 시나리오 안에는: stop → 파일배포(target=/opt/piuda) → start
       # ─────────────────────────────────────────
-            - name: Trigger Deploy Scenario (auto-discover)
+      - name: Trigger Deploy Scenario (auto-discover)
         id: run_scn
         run: |
           set -euo pipefail
