@@ -39,177 +39,106 @@ jobs:
       # 1) 파일그룹에 app.jar 업로드 (multipart/form-data)
       #    - 기존 동일파일명 있으면 덮어쓰기(auto) 또는 삭제 후 업로드
       # ─────────────────────────────────────────
-      - name: Upload JAR to NHN Deploy File Group
+      - name: Upload JAR to NHN Deploy File Group (header project-id)
         run: |
           set -euo pipefail
           JAR="${{ steps.jar.outputs.path }}"
+          URL="$BASE/deploy/v1.0/file-groups/$FILE_GROUP_NAME/files"
 
-          # (선택) 기존 파일 삭제 - 파일명이 app.jar로 고정이라면 안전하게 지우고 업로드
-          # curl -sS -X DELETE \
-          #   -H "X-TC-APP-KEY: $APPKEY" \
-          #   "$BASE/deploy/v1.0/projects/$PROJECT_ID/file-groups/$FILE_GROUP_NAME/files/app.jar" || true
+          echo "POST $URL"
+          RESP_FILE=$(mktemp); HDR_FILE=$(mktemp)
+          CODE=$(
+            curl -sS -X POST "$URL" \
+              -H "X-TC-APP-KEY: $APPKEY" \
+              -H "X-Project-Id: $PROJECT_ID" \
+              -H "Accept: application/json" \
+              -F "file=@${JAR};filename=app.jar;type=application/java-archive" \
+              -D "$HDR_FILE" -o "$RESP_FILE" -w "%{http_code}" || true
+          )
+          echo "HTTP_CODE: $CODE"
+          echo "---- RESPONSE HEADERS ----"; cat "$HDR_FILE"
+          echo "---- RESPONSE BODY (raw) ----"; head -c 400 "$RESP_FILE" || true; echo
 
-          # 업로드
-          # ※ 엔드포인트/헤더는 환경에 따라 v1.0/v1.1 등이 다를 수 있음. 401/404 시 문서의 경로를 확인해 조정.
-          curl -sS -X POST \
-            -H "X-TC-APP-KEY: $APPKEY" \
-            -H "Accept: application/json" \
-            -F "file=@${JAR};filename=app.jar;type=application/java-archive" \
-            "$BASE/deploy/v1.0/projects/$PROJECT_ID/file-groups/$FILE_GROUP_NAME/files"
+          if [[ ! "$CODE" =~ ^2 ]]; then
+            echo "❌ Upload failed"
+            exit 1
+          fi
 
       # ─────────────────────────────────────────
       # 2) 시나리오 실행 (서버그룹에 대해 실행)
       #    - 시나리오 안에는: stop → 파일배포(target=/opt/piuda) → start
       # ─────────────────────────────────────────
-      - name: Trigger Deploy Scenario (auto-discover)
+      - name: Trigger Deploy Scenario (with X-Project-Id)
         id: run_scn
         run: |
           set -euo pipefail
+          URL="$BASE/deploy/v1.0/scenarios/$SCENARIO_ID/executions"
+          BODY="{\"serverGroupId\": $SERVER_GROUP_ID}"
 
-          # 후보 엔드포인트들 (환경/버전에 따라 달라짐)
-          # 👉 실제 네 BASE/PROJECT_ID/SCENARIO_ID/SERVER_GROUP_ID 로 문자열이 완성됨
-          CANDIDATE_PATHS=(
-            "/deploy/v1.0/projects/$PROJECT_ID/scenarios/$SCENARIO_ID/executions"                          # 바디: {"serverGroupId":7036}
-            "/deploy/v1.0/projects/$PROJECT_ID/scenarios/$SCENARIO_ID/executions?serverGroupId=$SERVER_GROUP_ID"
-            "/deploy/v1/projects/$PROJECT_ID/scenarios/$SCENARIO_ID/executions"
-            "/deploy/v1.0/projects/$PROJECT_ID/server-groups/$SERVER_GROUP_ID/scenarios/$SCENARIO_ID/executions"
-            "/deploy/v1.0/projects/$PROJECT_ID/scenario-executions"                                        # 바디: {"scenarioId":..., "serverGroupId":...}
-            "/deploy/api/v1/projects/$PROJECT_ID/scenarios/$SCENARIO_ID/executions"
+          echo "POST $URL"
+          RESP_FILE=$(mktemp); HDR_FILE=$(mktemp)
+          CODE=$(
+            curl -sS -X POST "$URL" \
+              -H "X-TC-APP-KEY: $APPKEY" \
+              -H "X-Project-Id: $PROJECT_ID" \
+              -H "Content-Type: application/json" \
+              -H "Accept: application/json" \
+              -d "$BODY" \
+              -D "$HDR_FILE" -o "$RESP_FILE" -w "%{http_code}" || true
           )
 
-          # 후보 헤더 키 (계정/리전에 따라 다름)
-          declare -A HDRS
-          HDRS["X-TC-APP-KEY"]="$APPKEY"
-          HDRS["X-Api-Key"]="$APPKEY"
-          HDRS["X-NHN-APP-KEY"]="$APPKEY"
+          echo "HTTP_CODE: $CODE"
+          echo "---- RESPONSE HEADERS ----"; cat "$HDR_FILE"
+          echo "---- RESPONSE BODY (raw) ----"; head -c 400 "$RESP_FILE" || true; echo
 
-          # 바디 패턴 후보
-          BODIES=(
-            "{\"serverGroupId\": $SERVER_GROUP_ID}"
-            "{\"scenarioId\": $SCENARIO_ID, \"serverGroupId\": $SERVER_GROUP_ID}"
-            ""  # 바디 없이 트리거하는 타입
-          )
-
-          RUN_ID=""
-          USED_URL=""
-          USED_HDR=""
-          USED_BODY=""
-
-          echo "== Preflight: try GET on each URL (405 회피용 모양 파악) =="
-          for p in "${CANDIDATE_PATHS[@]}"; do
-            URL="$BASE$p"
-            echo "GET $URL"
-            RESP_FILE=$(mktemp); HDR_FILE=$(mktemp)
-            CODE=$(
-              curl -sS -X GET "$URL" \
-                -H "Accept: application/json" \
-                -D "$HDR_FILE" -o "$RESP_FILE" -w "%{http_code}" || true
-            )
-            CT=$(grep -i '^content-type:' "$HDR_FILE" | head -n1 | tr -d '\r' || true)
-            echo " -> HTTP $CODE | ${CT:-<no content-type>}"
-            if [[ "$CODE" == "200" || "$CODE" == "404" || "$CODE" == "405" || "$CODE" == "401" || "$CODE" == "403" ]]; then
-              # 단순히 모양 파악용 출력
-              :
-            fi
-          done
-
-          echo "== Try POST with multiple endpoint/header/body combinations =="
-          for p in "${CANDIDATE_PATHS[@]}"; do
-            for k in "${!HDRS[@]}"; do
-              for body in "${BODIES[@]}"; do
-                URL="$BASE$p"
-                echo "POST $URL with header $k and body='${body:0:60}…'"
-                RESP_FILE=$(mktemp); HDR_FILE=$(mktemp)
-                ARGS=(-sS -X POST "$URL" -H "$k: ${HDRS[$k]}" -H "Accept: application/json")
-                if [[ -n "$body" ]]; then
-                  ARGS+=(-H "Content-Type: application/json" -d "$body")
-                fi
-                CODE=$(curl "${ARGS[@]}" -D "$HDR_FILE" -o "$RESP_FILE" -w "%{http_code}" || true)
-                CT=$(grep -i '^content-type:' "$HDR_FILE" | head -n1 | tr -d '\r' || true)
-
-                echo " -> HTTP $CODE | ${CT:-<no content-type>}"
-                if [[ "$CODE" =~ ^2 ]]; then
-                  # RUN_ID 추출
-                  if echo "${CT,,}" | grep -q "application/json"; then
-                    RID=$(jq -r '.executionId // .runId // .id // empty' < "$RESP_FILE" || true)
-                  else
-                    RID=$(grep -oE '[0-9a-fA-F\-]{6,}' "$RESP_FILE" | head -n1 || true)
-                  fi
-
-                  echo "Response body (truncated):"
-                  head -c 400 "$RESP_FILE" || true
-                  echo
-
-                  if [[ -n "$RID" ]]; then
-                    RUN_ID="$RID"; USED_URL="$URL"; USED_HDR="$k"; USED_BODY="$body"
-                    echo "✅ Success with $URL (header=$k)"
-                    break 3
-                  fi
-                else
-                  # 문제 파악에 도움 되도록 요약 출력
-                  echo "Headers:"; cat "$HDR_FILE" || true
-                  echo "Body:"; head -c 400 "$RESP_FILE" || true; echo
-                fi
-              done
-            done
-          done
-
-          if [[ -z "$RUN_ID" ]]; then
-            echo "❌ 모든 조합 실패. 위 로그의 HTTP 코드/헤더/바디를 보고"
-            echo "   - 올바른 경로: /deploy/v1.0/... vs /deploy/v1/... vs /deploy/api/v1/..."
-            echo "   - 올바른 헤더: X-TC-APP-KEY vs X-Api-Key vs X-NHN-APP-KEY"
-            echo "   - serverGroupId 전달: body / query / path"
-            echo "   을 맞춰주세요."
+          if [[ ! "$CODE" =~ ^2 ]]; then
+            echo "❌ Scenario trigger failed"
             exit 1
           fi
 
-          echo "USED_URL=$USED_URL"
-          echo "USED_HDR=$USED_HDR"
-          echo "USED_BODY=$USED_BODY"
-          echo "RUN_ID=$RUN_ID"
+          # 실행 ID 추출(executionId/runId/id 대응)
+          RUN_ID="$(jq -r '.executionId // .runId // .id // empty' < "$RESP_FILE" || true)"
+          if [[ -z "$RUN_ID" ]]; then
+            # 비JSON일 가능성 대비
+            RUN_ID="$(grep -oE '[0-9a-fA-F\-]{6,}' "$RESP_FILE" | head -n1 || true)"
+          fi
+          if [[ -z "$RUN_ID" ]]; then
+            echo "❌ RUN_ID not found"
+            exit 1
+          fi
           echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-          echo "used_url=$USED_URL" >> $GITHUB_OUTPUT
 
 
       # ─────────────────────────────────────────
       # 3) 실행 상태 폴링 (성공/실패 대기)
       #    - 상태 필드는 status/state/result 등 환경별 명칭이 다를 수 있어 아래 3가지를 순서로 조회
       # ─────────────────────────────────────────
-      - name: Wait for Scenario Result (robust)
+      - name: Wait for Scenario Result (with X-Project-Id)
         run: |
           set -euo pipefail
           RUN_ID="${{ steps.run_scn.outputs.run_id }}"
-          URL="$BASE/deploy/v1.0/projects/$PROJECT_ID/scenarios/$SCENARIO_ID/executions/$RUN_ID"
-          echo "Waiting scenario run: $RUN_ID"
+          URL="$BASE/deploy/v1.0/scenarios/$SCENARIO_ID/executions/$RUN_ID"
           echo "GET $URL"
 
           for i in $(seq 1 60); do
-            RESP_FILE=$(mktemp)
-            HDR_FILE=$(mktemp)
-
-            HTTP_CODE=$(
+            RESP_FILE=$(mktemp); HDR_FILE=$(mktemp)
+            CODE=$(
               curl -sS -X GET "$URL" \
                 -H "X-TC-APP-KEY: $APPKEY" \
-                -D "$HDR_FILE" \
-                -o "$RESP_FILE" \
-                -w "%{http_code}"
+                -H "X-Project-Id: $PROJECT_ID" \
+                -H "Accept: application/json" \
+                -D "$HDR_FILE" -o "$RESP_FILE" -w "%{http_code}" || true
             )
+            CT=$(grep -i '^content-type:' "$HDR_FILE" | head -n1 | tr -d '\r' || true)
+            echo "[$i] HTTP_CODE: $CODE | ${CT:-<none>}"
 
-            CT=$(grep -i '^content-type:' "$HDR_FILE" | head -n1 | tr -d '\r')
-            echo "[$i] HTTP_CODE: $HTTP_CODE  Content-Type: ${CT:-<none>}"
-
-            if echo "${CT,,}" | grep -q "application/json"; then
-              # 상태 필드 후보들
-              STATUS=$(jq -r '.status // .state // .result // .executionStatus // empty' < "$RESP_FILE" || true)
-              echo "[$i] STATUS(JSON): ${STATUS:-<empty>}"
-            else
-              echo "[$i] BODY:"
-              cat "$RESP_FILE" || true
-              echo
-              # 비JSON이면 실패로 간주(명확하게 알기 위해)
-              echo "❌ 비JSON 응답입니다. 엔드포인트/헤더를 문서와 맞춰주세요."
+            if [[ ! "$CODE" =~ ^2 ]]; then
+              echo "Headers:"; cat "$HDR_FILE"; echo "Body:"; head -c 400 "$RESP_FILE"; echo
               exit 1
             fi
+
+            STATUS=$(jq -r '.status // .state // .result // .executionStatus // empty' < "$RESP_FILE" || true)
+            echo "[$i] STATUS: ${STATUS:-<empty>}"
 
             if [[ "$STATUS" =~ ^(SUCCESS|COMPLETED|DONE)$ ]]; then
               echo "✅ Scenario SUCCESS"
@@ -218,9 +147,8 @@ jobs:
               echo "❌ Scenario FAILED"
               exit 1
             fi
-
             sleep 5
           done
 
-          echo "⏰ Timeout waiting scenario result"
+          echo "⏰ Timeout"
           exit 1
