@@ -16,7 +16,7 @@ public class NotifyPhoto {
     @Column(name = "nphoto_id")
     private Long nphotoId;
 
-    @Column(name = "nphoto_path", nullable = false, length = 50)
+    @Column(name = "nphoto_path", nullable = false, length = 1024)
     private String nphotoPath;
 
     @ManyToOne

@@ -16,7 +16,7 @@ public class ReportPhoto {
     @Column(name = "rphoto_id")
     private Long rphotoId;
 
-    @Column(name = "rphoto_path", length = 50)
+    @Column(name = "rphoto_path", length = 1024)
     private String rphotoPath;
 
     @ManyToOne
