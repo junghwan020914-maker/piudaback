@@ -6,14 +6,14 @@ import com.example.piuda.domain.Entity.Notify;
 import com.example.piuda.domain.Entity.Notify.NotifyStatus;
 import com.example.piuda.domain.Entity.NotifyPhoto;
 import com.example.piuda.domain.Entity.Pin;
-//import com.example.piuda.storage.StorageService;
+import com.example.piuda.storage.StorageService;
+import com.example.piuda.storage.StorageFolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,7 +23,7 @@ public class NotifyService {
     private final NotifyRepository notifyRepository;
     private final PinService pinService;
     private final com.example.piuda.NotifyPhoto.NotifyPhotoRepository notifyPhotoRepository;
-   // private final StorageService storageService;
+    private final StorageService storageService;
 
     // 핀 중복 판별 거리(임시 하드코딩)
     private static final double NEARBY_DISTANCE_METERS = 50.0;
@@ -63,6 +63,9 @@ public class NotifyService {
     // 제보 생성: 바로 ACCEPT로 저장하고, 즉시 빨간 핀 생성/연결, 사진 업로드까지 처리
     @Transactional
     public Long createAndAccept(NotifyCreateRequestDTO dto, List<MultipartFile> photos) {
+        if (dto == null || dto.getX() == null || dto.getY() == null) {
+            throw new IllegalArgumentException("payload.x, payload.y 값은 필수입니다.");
+        }
         // 1) 핀 확보 (근처 없으면 RED 생성)
         double x = dto.getX();
         double y = dto.getY();
@@ -84,16 +87,16 @@ public class NotifyService {
         Notify saved = notifyRepository.save(notify);
 
         // 3) 사진 업로드 및 연결
-        /*if (photos != null && !photos.isEmpty()) {
+        if (photos != null && !photos.isEmpty()) {
             for (MultipartFile photo : photos) {
-                String url = storageService.upload("notifies", photo);
+                String url = storageService.upload(StorageFolder.NOTIFY, photo);
                 NotifyPhoto np = NotifyPhoto.builder()
                         .notify(saved)
                         .nphotoPath(url)
                         .build();
                 notifyPhotoRepository.save(np);
             }
-        } */
+        }
 
         return saved.getNotifyId();
     }

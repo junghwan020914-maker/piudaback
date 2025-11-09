@@ -13,16 +13,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import com.example.piuda.storage.StorageService;
+import com.example.piuda.storage.StorageFolder;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,8 +30,7 @@ public class ReportService {
     private final TrashRepository trashRepository;
     private final ReportPhotoRepository reportPhotoRepository;
     
-  //  @Value("${file.upload.dir}")
-    private String uploadDir;
+        private final StorageService storageService;
 
     public Long createReport(ReportRequestDTO dto, List<MultipartFile> photos) {
         // 1. Pin 엔티티 생성
@@ -84,17 +78,12 @@ public class ReportService {
         // 4. 사진이 있다면 ReportPhoto 엔티티들 생성
         if (photos != null && !photos.isEmpty()) {
             for (MultipartFile photo : photos) {
-                try {
-                    String photoPath = savePhotoFile(photo);
-                    
-                    ReportPhoto reportPhoto = ReportPhoto.builder()
-                            .report(savedReport)
-                            .rphotoPath(photoPath)
-                            .build();
-                    reportPhotoRepository.save(reportPhoto);
-                } catch (IOException e) {
-                    throw new RuntimeException("사진 저장 중 오류가 발생했습니다.", e);
-                }
+                String url = storageService.upload(StorageFolder.REPORT, photo);
+                ReportPhoto reportPhoto = ReportPhoto.builder()
+                        .report(savedReport)
+                        .rphotoPath(url)
+                        .build();
+                reportPhotoRepository.save(reportPhoto);
             }
         }
 
@@ -113,30 +102,5 @@ public class ReportService {
         }).collect(Collectors.toList());
     }
 
-    private String savePhotoFile(MultipartFile photo) throws IOException {
-        // 업로드 디렉토리가 없으면 생성
-        Path uploadPath = Paths.get(uploadDir);
-        if (!Files.exists(uploadPath)) {
-            Files.createDirectories(uploadPath);
-        }
-        
-        // 고유한 파일명 생성 (UUID + 타임스탬프 + 원본 파일명)
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        String uuid = UUID.randomUUID().toString().substring(0, 8);
-        String originalFilename = photo.getOriginalFilename();
-        String extension = "";
-        
-        if (originalFilename != null && originalFilename.contains(".")) {
-            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
-        }
-        
-        String newFilename = timestamp + "_" + uuid + extension;
-        
-        // 파일 저장
-        Path filePath = uploadPath.resolve(newFilename);
-        Files.copy(photo.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-        
-        // DB에 저장할 상대 경로 반환
-        return uploadDir + "/" + newFilename;
-    }
+    // Local file save logic removed; now handled by S3StorageService.
 }
