@@ -35,7 +35,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "piuda.tar"
+          source: "./piuda.tar"
           target: "/opt/piuda/"
 
       - name: SSH → Load image & Restart
