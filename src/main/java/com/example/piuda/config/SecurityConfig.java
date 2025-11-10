@@ -38,10 +38,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/").permitAll()
                         .anyRequest().authenticated()
                 )
-                .oauth2Login(oauth -> oauth
+                /*.oauth2Login(oauth -> oauth
                         .userInfoEndpoint(u -> u.userService(customOAuth2UserService))
                         .successHandler(oAuth2LoginSuccessHandler)
-                )
+                )*/
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

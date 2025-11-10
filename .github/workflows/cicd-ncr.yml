@@ -75,9 +75,31 @@ jobs:
             export HOST="${HOST}"
 
             cd /opt/app
-            echo "\$NCR_PASSWORD" | docker login "\$HOST" -u "\$NCR_USERNAME" --password-stdin || true
-            echo "\$NCR_PASSWORD" | docker login "\$NCR_REGISTRY" -u "\$NCR_USERNAME" --password-stdin || true
-            docker compose pull app || true
-            docker compose up -d --pull always
+
+            echo "$NCR_PASSWORD" | docker login "$HOST" -u "$NCR_USERNAME" --password-stdin || true
+            echo "$NCR_PASSWORD" | docker login "$NCR_REGISTRY" -u "$NCR_USERNAME" --password-stdin || true
+  
+            # 2) 네트워크 보장 (없으면 생성됨)
+            docker network create piuda-net || true
+  
+            # 3) 최신 이미지 pull
+            docker pull "$IMAGE"
+  
+            # 4) 기존 앱 컨테이너 중지 + 삭제
+            docker rm -f piuda-app || true
+  
+            # 5) 새 앱 컨테이너 실행 — 여기서 네트워크 연결이 핵심
+            docker run -d \
+              --name piuda-app \
+              --network piuda-net \
+              -p 8080:8080 \
+              -e SPRING_PROFILES_ACTIVE=prod \
+              -v /opt/app/config:/config \
+              "$IMAGE"
+
+            # 필요하면 OAuth redirect 추가
+            #  -e APP_OAUTH2_FRONT_REDIRECT_URL="http://localhost:3000/login/oauth/success" \
+
+            # 6) 이미지 청소
             docker image prune -f || true
           EOF
