@@ -92,10 +92,15 @@ jobs:
             docker run -d \
               --name piuda-app \
               --network piuda-net \
-              -p 8080:8080 \
+              -p 80:8080 \
               -e SPRING_PROFILES_ACTIVE=prod \
-              -v /opt/app/config:/config \
+              -e SPRING_CONFIG_ADDITIONAL_LOCATION=/config/ \
+              --restart unless-stopped \
+              -v /opt/app:/config \
               "\$IMAGE"
+
+            echo "== show status =="
+            docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
             docker image prune -f >/dev/null 2>&1 || true
           EOF
