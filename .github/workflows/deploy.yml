@@ -5,9 +5,8 @@ on:
     branches: [ "main" ]
 
 env:
-  # 이미 시크릿에 host/registry가 들어있음 (예: .../seagnal-registry)
   NCR_REGISTRY: ${{ secrets.NCR_REGISTRY }}
-  REPO: piuda-storage       # ← 콘솔에서 방금 만든 이미지 저장소 이름
+  REPO: piuda-storage
   IMAGE: ${{ env.NCR_REGISTRY }}/${{ env.REPO }}
   TAG: ${{ github.sha }}
 
