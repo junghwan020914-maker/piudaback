@@ -52,14 +52,17 @@ jobs:
 
       - name: Remote deploy
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_KEY:  ${{ secrets.SSH_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}     # 예: 서버 IP
+          SSH_USER: ${{ secrets.SSH_USER }}     # 예: ubuntu
+          SSH_KEY_B64: ${{ secrets.SSH_KEY_B64 }}
+          NCR_REGISTRY: ${{ secrets.NCR_REGISTRY }}
           NCR_USERNAME: ${{ secrets.NCR_USERNAME }}
           NCR_PASSWORD: ${{ secrets.NCR_PASSWORD }}
+          HOST: 183eb861-kr1-registry.container.nhncloud.com
+          REPO: piuda-image
         run: |
           set -e
-          printf "%b" "${{ secrets.SSH_KEY }}" | tr -d '\r' > key.pem
+          echo "$SSH_KEY_B64" | base64 -d > key.pem || echo "$SSH_KEY_B64" | base64 --decode > key.pem
           chmod 600 key.pem
           ssh-keygen -lf key.pem > /dev/null
           
