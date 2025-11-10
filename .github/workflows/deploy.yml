@@ -7,6 +7,7 @@ on:
 env:
   NCR_HOST: 183eb861-kr1-registry.container.nhncloud.com   # ← 호스트만
   REPO: seagnal-registry
+  IMAGE: ${{ env.NCR_HOST }}/${{ env.REPO }}
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
@@ -34,12 +35,12 @@ jobs:
 
       - name: Build image
         run: |
-          docker build -t $REGISTRY:latest -t $REGISTRY:${{ env.IMAGE_TAG }} .
+          docker build -t $IMAGE:latest -t $IMAGE:${IMAGE_TAG} .
 
       - name: Push image
         run: |
-          docker push $REGISTRY:${{ env.IMAGE_TAG }}
-          docker push $REGISTRY:latest
+          docker push $IMAGE:${IMAGE_TAG}
+          docker push $IMAGE:latest
 
   deploy:
     needs: build-and-push
