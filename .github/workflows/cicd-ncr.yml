@@ -61,6 +61,7 @@ jobs:
           set -e
           printf "%b" "${{ secrets.SSH_KEY }}" | tr -d '\r' > key.pem
           chmod 600 key.pem
+          ssh-keygen -lf key.pem > /dev/null
           
           ssh -o StrictHostKeyChecking=no -i key.pem ${SSH_USER}@${SSH_HOST} <<EOF
             set -e
