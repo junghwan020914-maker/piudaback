@@ -43,17 +43,18 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     env:
-      NCR_REGISTRY: ${{ secrets.NCR_REGISTRY }}
+      NCR_REGISTRY: ${{ secrets.NCR_REGISTRY }}  # 예) 183eb861-kr1-registry.container.nhncloud.com/seagnal-registry  (https:// 금지, 끝 슬래시 금지)
       REPO: piuda-image
       HOST: 183eb861-kr1-registry.container.nhncloud.com
+
     steps:
       - name: Install SSH client
-        run: sudo apt-get update && sudo apt-get install -y ssh
+        run: sudo apt-get update && sudo apt-get install -y openssh-client
 
       - name: Remote deploy
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}     # 예: 서버 IP
-          SSH_USER: ${{ secrets.SSH_USER }}     # 예: ubuntu
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
           SSH_KEY_B64: ${{ secrets.SSH_KEY_B64 }}
           NCR_REGISTRY: ${{ secrets.NCR_REGISTRY }}
           NCR_USERNAME: ${{ secrets.NCR_USERNAME }}
@@ -61,45 +62,62 @@ jobs:
           HOST: 183eb861-kr1-registry.container.nhncloud.com
           REPO: piuda-image
         run: |
-          set -e
+          set -Eeuo pipefail
           echo "$SSH_KEY_B64" | base64 -d > key.pem || echo "$SSH_KEY_B64" | base64 --decode > key.pem
           chmod 600 key.pem
-          ssh-keygen -lf key.pem > /dev/null
-          
-          ssh -o StrictHostKeyChecking=no -i key.pem ${SSH_USER}@${SSH_HOST} <<EOF
-            set -e
-            export NCR_REGISTRY="${NCR_REGISTRY}"
-            export IMAGE="\$NCR_REGISTRY/${REPO}:latest"
-            export NCR_USERNAME="${NCR_USERNAME}"
-            export NCR_PASSWORD="${NCR_PASSWORD}"
-            export HOST="${HOST}"
+
+          ssh -o StrictHostKeyChecking=no -i key.pem "${SSH_USER}@${SSH_HOST}" <<'EOSSH'
+            set -Eeuo pipefail
+
+            # ===== 입력 값 주입 =====
+            NCR_REGISTRY="${NCR_REGISTRY}"
+            NCR_USERNAME="${NCR_USERNAME}"
+            NCR_PASSWORD="${NCR_PASSWORD}"
+            HOST="${HOST}"
+            REPO="${REPO}"
+
+            # NCR_REGISTRY sanity check (https:// 금지, 끝 슬래시 금지)
+            if echo "\$NCR_REGISTRY" | grep -qE '^https?://'; then
+              echo "ERROR: NCR_REGISTRY must NOT contain protocol (https://). Current=\$NCR_REGISTRY"
+              exit 1
+            fi
+            NCR_REGISTRY="\${NCR_REGISTRY%/}"   # trailing slash 제거
+
+            IMAGE="\$NCR_REGISTRY/\$REPO:latest"
+
+            echo "== Using image: \$IMAGE"
+            # 이미지 레퍼런스 간단 검증
+            if ! echo "\$IMAGE" | grep -qE '^[^/]+(\.[^/]+)+/.+:.+$'; then
+              echo "ERROR: invalid image reference format => \$IMAGE"
+              exit 1
+            fi
 
             cd /opt/app
 
-            echo "$NCR_PASSWORD" | docker login "$HOST" -u "$NCR_USERNAME" --password-stdin || true
-            echo "$NCR_PASSWORD" | docker login "$NCR_REGISTRY" -u "$NCR_USERNAME" --password-stdin || true
-  
-            # 2) 네트워크 보장 (없으면 생성됨)
-            docker network create piuda-net || true
-  
+            # 1) 레지스트리 로그인 (호스트 한 번만 확실하게)
+            echo "\$NCR_PASSWORD" | docker login "\$HOST" -u "\$NCR_USERNAME" --password-stdin
+
+            # 2) 네트워크 존재하면 스킵
+            if ! docker network inspect piuda-net >/dev/null 2>&1; then
+              docker network create piuda-net
+            fi
+
             # 3) 최신 이미지 pull
-            docker pull "$IMAGE"
-  
-            # 4) 기존 앱 컨테이너 중지 + 삭제
-            docker rm -f piuda-app || true
-  
-            # 5) 새 앱 컨테이너 실행 — 여기서 네트워크 연결이 핵심
+            docker pull "\$IMAGE"
+
+            # 4) 기존 컨테이너 제거
+            docker rm -f piuda-app >/dev/null 2>&1 || true
+
+            # 5) 새 컨테이너 실행
             docker run -d \
               --name piuda-app \
               --network piuda-net \
               -p 8080:8080 \
               -e SPRING_PROFILES_ACTIVE=prod \
               -v /opt/app/config:/config \
-              "$IMAGE"
+              "\$IMAGE"
 
-            # 필요하면 OAuth redirect 추가
-            #  -e APP_OAUTH2_FRONT_REDIRECT_URL="http://localhost:3000/login/oauth/success" \
-
-            # 6) 이미지 청소
-            docker image prune -f || true
-          EOF
+            # 6) 청소
+            docker image prune -f >/dev/null 2>&1 || true
+          EOSSH
+  

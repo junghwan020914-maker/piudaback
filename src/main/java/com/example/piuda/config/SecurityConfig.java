@@ -2,8 +2,8 @@ package com.example.piuda.config;
 
 import com.example.piuda.config.JwtAuthenticationFilter;
 import com.example.piuda.config.JwtTokenProvider;
-import com.example.piuda.config.oauth.CustomOAuth2UserService;
-import com.example.piuda.config.oauth.OAuth2LoginSuccessHandler;
+//import com.example.piuda.config.oauth.CustomOAuth2UserService;
+//import com.example.piuda.config.oauth.OAuth2LoginSuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.*;
 import org.springframework.http.HttpMethod;
@@ -20,8 +20,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
-    private final CustomOAuth2UserService customOAuth2UserService;
-    private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+    //private final CustomOAuth2UserService customOAuth2UserService;
+    //private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
 
     @Bean
     public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
