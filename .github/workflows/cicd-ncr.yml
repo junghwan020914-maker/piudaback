@@ -59,8 +59,7 @@ jobs:
           NCR_PASSWORD: ${{ secrets.NCR_PASSWORD }}
         run: |
           set -e
-          # 🔐 키 복원 (base64 → 파일, CRLF 영향 없음)
-          echo "$SSH_KEY_B64" | base64 -d > key.pem || echo "$SSH_KEY_B64" | base64 --decode > key.pem
+          printf "%b" "${{ secrets.SSH_KEY }}" | tr -d '\r' > key.pem
           chmod 600 key.pem
           
           ssh -o StrictHostKeyChecking=no -i key.pem ${SSH_USER}@${SSH_HOST} <<EOF
