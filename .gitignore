@@ -11,6 +11,10 @@ build/
 
 *.pem
 
+.pub
+
+.b64
+
 ### STS ###
 .apt_generated
 .classpath
