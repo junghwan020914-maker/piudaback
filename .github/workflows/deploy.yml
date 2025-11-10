@@ -5,8 +5,7 @@ on:
     branches: [ "main" ]
 
 env:
-  NCR_HOST: 183eb861-kr1-registry.container.nhncloud.com   # 레지스트리 호스트
-  REPO: seagnal-registry                                   # 레포지토리 이름
+  NCR_REGISTRY: 183eb861-kr1-registry.container.nhncloud.com/seagnal-registry
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
@@ -26,21 +25,21 @@ jobs:
           chmod +x ./gradlew
           ./gradlew clean bootJar --no-daemon
 
-      - name: Docker login (NCR)
+      - name: Docker login (NCR)  # ← 경로 포함 레지스트리로 로그인
         run: |
-          echo "${{ secrets.NCR_PASSWORD }}" | docker login "$NCR_HOST" \
+          echo "${{ secrets.NCR_PASSWORD }}" | docker login "${{ env.NCR_REGISTRY }}" \
             -u "${{ secrets.NCR_USERNAME }}" --password-stdin
 
       - name: Build image
         run: |
           docker build \
-            -t $NCR_HOST/$REPO:latest \
-            -t $NCR_HOST/$REPO:${IMAGE_TAG} .
+            -t $NCR_REGISTRY:latest \
+            -t $NCR_REGISTRY:${IMAGE_TAG} .
 
       - name: Push image
         run: |
-          docker push $NCR_HOST/$REPO:${IMAGE_TAG}
-          docker push $NCR_HOST/$REPO:latest
+          docker push $NCR_REGISTRY:${IMAGE_TAG}
+          docker push $NCR_REGISTRY:latest
 
   deploy:
     needs: build-and-push
@@ -54,23 +53,21 @@ jobs:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_KEY:  ${{ secrets.SSH_KEY }}
-          NCR_HOST: 183eb861-kr1-registry.container.nhncloud.com
-          REPO: seagnal-registry
+          NCR_REGISTRY: 183eb861-kr1-registry.container.nhncloud.com/seagnal-registry
           NCR_USERNAME: ${{ secrets.NCR_USERNAME }}
           NCR_PASSWORD: ${{ secrets.NCR_PASSWORD }}
         run: |
           set -e
           echo "$SSH_KEY" > key.pem
           chmod 600 key.pem
-          ssh -o StrictHostKeyChecking=no -i key.pem ${SSH_USER}@${SSH_HOST} <<EOF
+          ssh -o StrictHostKeyChecking=no -i key.pem ${SSH_USER}@${SSH_HOST} <<'EOF'
             set -e
             cd /opt/app
+            # 레지스트리 로그인 (경로 포함)
+            echo "${NCR_PASSWORD}" | docker login "${NCR_REGISTRY}" -u "${NCR_USERNAME}" --password-stdin || true
 
-            # 레지스트리 로그인
-            echo "${NCR_PASSWORD}" | docker login "${NCR_HOST}" -u "${NCR_USERNAME}" --password-stdin || true
-
-            # 최신 이미지 pull + 재기동 (compose에서 IMAGE 환경변수 사용)
-            export IMAGE="${NCR_HOST}/${REPO}:latest"
+            # 최신 이미지 pull + 재기동
+            export IMAGE="${NCR_REGISTRY}:latest"
             docker compose pull app || true
             docker compose up -d --pull always
             docker image prune -f || true
