@@ -1,0 +1,83 @@
+name: CI/CD -> NCR push & remote deploy
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    env:
+      # ← 여기서 조합: 최상위 env에서 secrets 참조 안 함
+      NCR_REGISTRY: ${{ secrets.NCR_REGISTRY }}         # ex) 183...nhncloud.com/seagnal-registry
+      REPO: piuda-image
+      TAG: ${{ github.sha }}
+      IMAGE: ${{ secrets.NCR_REGISTRY }}/piuda-image
+      HOST: 183eb861-kr1-registry.container.nhncloud.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build (Gradle)
+        run: |
+          chmod +x ./gradlew || true
+          ./gradlew clean bootJar --no-daemon
+
+      - name: Docker login (NCR)
+        run: |
+          echo "${{ secrets.NCR_PASSWORD }}" | docker login "$HOST" -u "${{ secrets.NCR_USERNAME }}" --password-stdin
+          echo "${{ secrets.NCR_PASSWORD }}" | docker login "${{ env.NCR_REGISTRY }}" -u "${{ secrets.NCR_USERNAME }}" --password-stdin
+
+      - name: Build & Push
+        run: |
+          docker build -t "$IMAGE:latest" -t "$IMAGE:$TAG" .
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    env:
+      NCR_REGISTRY: ${{ secrets.NCR_REGISTRY }}
+      REPO: piuda-image
+      HOST: 183eb861-kr1-registry.container.nhncloud.com
+    steps:
+      - name: Install SSH client
+        run: sudo apt-get update && sudo apt-get install -y ssh
+
+      - name: Remote deploy
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}     # 예: 서버 IP
+          SSH_USER: ${{ secrets.SSH_USER }}     # 예: ubuntu
+          SSH_KEY_B64: ${{ secrets.SSH_KEY_B64 }}
+          NCR_REGISTRY: ${{ secrets.NCR_REGISTRY }}
+          NCR_USERNAME: ${{ secrets.NCR_USERNAME }}
+          NCR_PASSWORD: ${{ secrets.NCR_PASSWORD }}
+          HOST: 183eb861-kr1-registry.container.nhncloud.com
+          REPO: piuda-image
+        run: |
+          set -e
+          echo "$SSH_KEY_B64" | base64 -d > key.pem || echo "$SSH_KEY_B64" | base64 --decode > key.pem
+          chmod 600 key.pem
+          ssh-keygen -lf key.pem > /dev/null
+          
+          ssh -o StrictHostKeyChecking=no -i key.pem ${SSH_USER}@${SSH_HOST} <<EOF
+            set -e
+            export NCR_REGISTRY="${NCR_REGISTRY}"
+            export IMAGE="\$NCR_REGISTRY/${REPO}:latest"
+            export NCR_USERNAME="${NCR_USERNAME}"
+            export NCR_PASSWORD="${NCR_PASSWORD}"
+            export HOST="${HOST}"
+
+            cd /opt/app
+            echo "\$NCR_PASSWORD" | docker login "\$HOST" -u "\$NCR_USERNAME" --password-stdin || true
+            echo "\$NCR_PASSWORD" | docker login "\$NCR_REGISTRY" -u "\$NCR_USERNAME" --password-stdin || true
+            docker compose pull app || true
+            docker compose up -d --pull always
+            docker image prune -f || true
+          EOF
