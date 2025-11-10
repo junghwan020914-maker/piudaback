@@ -59,6 +59,8 @@ jobs:
           NCR_PASSWORD: ${{ secrets.NCR_PASSWORD }}
         run: |
           set -e
+          # 🔐 키 복원 (개행 보존 + CR 제거)
+          printf "%b" "$SSH_KEY" | tr -d '\r' > key.pem
           echo "$SSH_KEY" > key.pem && chmod 600 key.pem
           ssh -o StrictHostKeyChecking=no -i key.pem ${SSH_USER}@${SSH_HOST} <<EOF
             set -e
