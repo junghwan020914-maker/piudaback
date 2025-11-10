@@ -5,9 +5,8 @@ on:
     branches: [ "main" ]
 
 env:
-  NCR_HOST: 183eb861-kr1-registry.container.nhncloud.com   # ← 호스트만
-  REPO: seagnal-registry
-  IMAGE: ${{ env.NCR_HOST }}/${{ env.REPO }}
+  NCR_HOST: 183eb861-kr1-registry.container.nhncloud.com   # 레지스트리 호스트
+  REPO: seagnal-registry                                   # 레포지토리 이름
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
@@ -29,18 +28,19 @@ jobs:
 
       - name: Docker login (NCR)
         run: |
-          echo "${{ secrets.NCR_PASSWORD }}" | docker login "${{ secrets.NCR_REGISTRY }}" \
+          echo "${{ secrets.NCR_PASSWORD }}" | docker login "$NCR_HOST" \
             -u "${{ secrets.NCR_USERNAME }}" --password-stdin
-        # 필요 시 로그인 host만 주는 형태로 변경: docker login 183eb861-kr1-registry.container.nhncloud.com ...
 
       - name: Build image
         run: |
-          docker build -t $IMAGE:latest -t $IMAGE:${IMAGE_TAG} .
+          docker build \
+            -t $NCR_HOST/$REPO:latest \
+            -t $NCR_HOST/$REPO:${IMAGE_TAG} .
 
       - name: Push image
         run: |
-          docker push $IMAGE:${IMAGE_TAG}
-          docker push $IMAGE:latest
+          docker push $NCR_HOST/$REPO:${IMAGE_TAG}
+          docker push $NCR_HOST/$REPO:latest
 
   deploy:
     needs: build-and-push
@@ -54,22 +54,23 @@ jobs:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_KEY:  ${{ secrets.SSH_KEY }}
-          REGISTRY: ${{ secrets.NCR_REGISTRY }}
+          NCR_HOST: 183eb861-kr1-registry.container.nhncloud.com
+          REPO: seagnal-registry
           NCR_USERNAME: ${{ secrets.NCR_USERNAME }}
           NCR_PASSWORD: ${{ secrets.NCR_PASSWORD }}
         run: |
           set -e
           echo "$SSH_KEY" > key.pem
           chmod 600 key.pem
-          ssh -o StrictHostKeyChecking=no -i key.pem ${SSH_USER}@${SSH_HOST} << 'EOF'
+          ssh -o StrictHostKeyChecking=no -i key.pem ${SSH_USER}@${SSH_HOST} <<EOF
             set -e
             cd /opt/app
 
             # 레지스트리 로그인
-            echo "${NCR_PASSWORD}" | docker login "183eb861-kr1-registry.container.nhncloud.com" -u "${NCR_USERNAME}" --password-stdin || true
+            echo "${NCR_PASSWORD}" | docker login "${NCR_HOST}" -u "${NCR_USERNAME}" --password-stdin || true
 
-            # 최신 이미지 pull + 재기동
-            export IMAGE="${REGISTRY}:latest"
+            # 최신 이미지 pull + 재기동 (compose에서 IMAGE 환경변수 사용)
+            export IMAGE="${NCR_HOST}/${REPO}:latest"
             docker compose pull app || true
             docker compose up -d --pull always
             docker image prune -f || true
