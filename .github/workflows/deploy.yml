@@ -5,7 +5,7 @@ on:
     branches: [ "main" ]
 
 env:
-  NCR_REGISTRY: ${{ secrets.NCR_REGISTRY }}/piuda
+  NCR_REGISTRY: 183eb861-kr1-registry.container.nhncloud.com/seagnal-registry/piuda
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
