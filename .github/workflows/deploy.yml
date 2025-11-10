@@ -5,7 +5,8 @@ on:
     branches: [ "main" ]
 
 env:
-  REGISTRY: ${{ secrets.NCR_REGISTRY }}
+  NCR_HOST: 183eb861-kr1-registry.container.nhncloud.com   # ← 호스트만
+  REPO: seagnal-registry
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
