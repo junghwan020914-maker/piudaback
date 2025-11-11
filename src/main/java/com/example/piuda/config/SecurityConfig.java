@@ -14,7 +14,12 @@ import org.springframework.security.crypto.bcrypt.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.*;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
+//
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import java.util.List;
+//
 @Configuration
 @RequiredArgsConstructor
 public class SecurityConfig {
@@ -43,4 +48,21 @@ public class SecurityConfig {
 
         return http.build();
     }
+    //
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration cfg = new CorsConfiguration();
+        // 프론트 개발 서버 출처를 정확히 (포트 포함) 등록
+        cfg.setAllowedOrigins(List.of("http://localhost:8081"));
+        cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
+        cfg.setAllowedHeaders(List.of("*"));
+        cfg.setAllowCredentials(true);
+        // 필요 시 다운로드 파일명 등 노출 헤더
+        // cfg.setExposedHeaders(List.of("Content-Disposition"));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", cfg);
+        return source;
+    }
+    //
 }
