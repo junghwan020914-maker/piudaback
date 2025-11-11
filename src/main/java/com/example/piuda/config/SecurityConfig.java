@@ -56,7 +56,8 @@ public class SecurityConfig {
         // 프론트 개발 서버 출처를 정확히 (포트 포함) 등록
         cfg.setAllowedOrigins(List.of("http://localhost:8080",
                                       "http://localhost:8081",
-                                      "https://piuda-front.vercel.app/"));
+                                      "https://piuda-front.vercel.app",
+                                        "https://piuda-front-git-dev-minkyeong-chois-projects.vercel.app/"));
         cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));
         cfg.setAllowCredentials(true);
