@@ -49,11 +49,13 @@ public class SecurityConfig {
         return http.build();
     }
     //
-    /*@Bean
+    @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
         // 프론트 개발 서버 출처를 정확히 (포트 포함) 등록
-        cfg.setAllowedOrigins(List.of("http://localhost:8081"));
+        cfg.setAllowedOrigins(List.of("http://localhost:8080",
+                                      "http://localhost:8081",
+                                      "https://piuda-front.vercel.app/"));
         cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));
         cfg.setAllowCredentials(true);
@@ -63,6 +65,6 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cfg);
         return source;
-    }*/
+    }
     //
 }
