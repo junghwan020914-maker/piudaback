@@ -254,44 +254,8 @@ public class PinService {
         );
     }
 
-// 필터링된 핀 반환 메소드
-    public List<PinResponseDTO> getFilteredPins(
-            LocalDate startDate,
-            LocalDate endDate,
-            List<String> organizationNames,
-            Pin.Region region,
-        Double minKg,
-        Double minL,
-        Double maxKg,
-        Double maxL) {
 
-        // 빈 리스트는 필터 미적용을 위해 null로 전달
-        List<String> orgNamesParam = (organizationNames == null || organizationNames.isEmpty()) ? null : organizationNames;
-
-    List<Pin> pins = pinRepository.findWithFilters(startDate, endDate, orgNamesParam, region, minKg, minL, maxKg, maxL);
-
-        return pins.stream().map(pin -> {
-            List<Report> reports = reportRepository.findByPin(pin);
-            List<String> orgNames = reports.stream()
-                    .map(Report::getReportName)
-                    .filter(Objects::nonNull)
-                    .distinct()
-                    .collect(Collectors.toList());
-            double totalKg = reports.stream()
-                .map(Report::getTrash)
-                .filter(Objects::nonNull)
-                .mapToDouble(t -> t.getTrashKg() != null ? t.getTrashKg() : 0.0)
-                .sum();
-            double totalL = reports.stream()
-                .map(Report::getTrash)
-                .filter(Objects::nonNull)
-                .mapToDouble(t -> t.getTrashL() != null ? t.getTrashL() : 0.0)
-                .sum();
-            return new PinResponseDTO(pin, orgNames, totalKg, totalL);
-        }).collect(Collectors.toList());
-    }
-
-    // 일정 거리 내 중복 체크 (예: 50m)
+    // 일정 거리 내 중복 체크 (예: 500m)
     private boolean isPinNearby(double x, double y, double distanceMeters) {
         List<Pin> pins = pinRepository.findAll();
         for (Pin pin : pins) {
