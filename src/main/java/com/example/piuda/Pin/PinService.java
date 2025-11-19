@@ -41,14 +41,16 @@ public class PinService {
             double dx = pin.getPinX() - x;
             double dy = pin.getPinY() - y;
             double dist = Math.sqrt(dx * dx + dy * dy) * 111_000; // 위도/경도 -> m 변환(간략)
-            if (dist < distanceMeters) return Optional.of(pin);
+            if (dist < distanceMeters) {
+                return Optional.of(pin);
+            }
         }
         return Optional.empty();
     }
 
-    // Report 등에서 사용하는 핀 확보: 근처에 있으면 기존 핀 반환, 없으면 WHITE 새 핀 생성
+    // Report에서 사용하는 핀 확보: 근처에 있으면 기존 핀 반환, 없으면 WHITE 새 핀 생성
     @Transactional
-    public Pin getOrCreateWhitePin(double x, double y, double distanceMeters) {
+    public Pin addPinFromReportAndGet(double x, double y, double distanceMeters) {
         Optional<Pin> near = findNearbyPin(x, y, distanceMeters);
         if (near.isPresent()) return near.get();
         Pin pin = Pin.builder()
@@ -59,7 +61,20 @@ public class PinService {
                 .build();
         return pinRepository.save(pin);
     }
-
+    // 제보 상태가 수락으로 변경된경우 핀추가, 해당 위치의 핀 이미 존재시 존재하고 있는 핀 반환(red 핀 생성)
+    @Transactional
+    public Pin addPinFromNotifyAndGet(double x, double y, double distanceMeters) {
+        // 근처에 핀이 없으면 새로 생성 후 반환
+        Optional<Pin> near = findNearbyPin(x, y, distanceMeters);
+        if (near.isPresent()) return near.get();
+        Pin pin = Pin.builder()
+                .pinX(x)
+                .pinY(y)
+                .pinCreatedAt(LocalDateTime.now())
+                .pinColor(Pin.PinColor.WHITE)
+                .build();
+        return pinRepository.save(pin);
+    }
     // 초기 지도 로드용: 전체 핀 데이터(클라이언트 필터링용 요약 포함) 반환
     public List<PinResponseDTO> getAllPinsForClient() {
         List<Pin> pins = pinRepository.findAll();
@@ -254,46 +269,6 @@ public class PinService {
         );
     }
 
-
-    // 일정 거리 내 중복 체크 (예: 500m)
-    private boolean isPinNearby(double x, double y, double distanceMeters) {
-        List<Pin> pins = pinRepository.findAll();
-        for (Pin pin : pins) {
-            double dx = pin.getPinX() - x;
-            double dy = pin.getPinY() - y;
-            double dist = Math.sqrt(dx * dx + dy * dy) * 111_000; // 위도/경도 -> m 변환(간략)
-            if (dist < distanceMeters) return true;
-        }
-        return false;
-    }
-
-
-    
-        // 제보 상태가 수락으로 변경된경우 핀추가, 해당 위치의 핀 이미 존재시 존재하고 있는 핀 반환(red 핀 생성)
-        public Optional<Pin> addPinFromNotifyAndGet(double x, double y, double distanceMeters) {
-            // 근처에 핀이 없으면 새로 생성 후 반환
-            if (!isPinNearby(x, y, distanceMeters)) {
-                Pin pin = Pin.builder()
-                        .pinX(x)
-                        .pinY(y)
-                        .pinCreatedAt(java.time.LocalDateTime.now())
-                        .pinColor(Pin.PinColor.RED)
-                        .build();
-                Pin saved = pinRepository.save(pin);
-                return Optional.of(saved);
-            }
-            // 근처에 핀이 있으면 그 핀을 찾아 반환
-            List<Pin> pins = pinRepository.findAll();
-            for (Pin p : pins) {
-                double dx = p.getPinX() - x;
-                double dy = p.getPinY() - y;
-                double dist = Math.sqrt(dx * dx + dy * dy) * 111_000;
-                if (dist < distanceMeters) {
-                    return Optional.of(p);
-                }
-            }
-            return Optional.empty();
-        }
 
     // 예약 시 핀 색상 파란색으로 변경
     public boolean setPinColorBlue(Long pinId) {

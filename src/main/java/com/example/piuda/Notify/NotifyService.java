@@ -27,7 +27,7 @@ public class NotifyService {
     private final StorageService storageService;
 
     // 핀 중복 판별 거리(임시 하드코딩)
-    private static final double NEARBY_DISTANCE_METERS = 50.0;
+    private static final double NEARBY_DISTANCE_METERS = 500.0;
 
 
 
@@ -52,7 +52,7 @@ public class NotifyService {
         Double y = n.getNotifyY();
         
         // addPinFromNotify 스타일로: 근처에 없으면 생성, 있으면 기존 핀 반환 (거리 하드코딩 사용)
-        Pin pin = pinService.addPinFromNotifyAndGet(x, y, NEARBY_DISTANCE_METERS).orElse(null);
+        Pin pin = pinService.addPinFromNotifyAndGet(x, y, NEARBY_DISTANCE_METERS);
 
         if (pin == null) return false; // 생성 실패 등 비정상 상황
 
@@ -70,7 +70,7 @@ public class NotifyService {
         // 1) 핀 확보 (근처 없으면 RED 생성)
         double x = dto.getX();
         double y = dto.getY();
-        Pin pin = pinService.addPinFromNotifyAndGet(x, y, NEARBY_DISTANCE_METERS).orElse(null);
+        Pin pin = pinService.addPinFromNotifyAndGet(x, y, NEARBY_DISTANCE_METERS);
         if (pin == null) {
             // addPinFromNotifyAndGet 내부에서 보통 생성되므로 null 가능성은 낮지만, 방어적으로 실패 처리
             throw new IllegalStateException("핀 생성에 실패했습니다.");
