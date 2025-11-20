@@ -35,11 +35,15 @@ public class Report {
     @Column(name = "report_content", length = 2000)
     private String reportContent;
 
-    @OneToOne
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "trash_id", nullable = false, unique = true)
     private Trash trash;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pin_id", nullable = false)
     private Pin pin;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "org_id", nullable = false)
+    private Org org;
 }
