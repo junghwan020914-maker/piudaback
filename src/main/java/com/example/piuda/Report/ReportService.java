@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import com.example.piuda.storage.StorageService;
 import com.example.piuda.storage.StorageFolder;
-
+import com.example.piuda.Pin.PinService;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -29,18 +29,14 @@ public class ReportService {
     private final PinRepository pinRepository;
     private final TrashRepository trashRepository;
     private final ReportPhotoRepository reportPhotoRepository;
-    
-        private final StorageService storageService;
+    private final StorageService storageService;
+    private final PinService pinService;
+    // 핀 중복 판별 거리(임시 하드코딩)
+    private static final double NEARBY_DISTANCE_METERS = 500.0;
 
     public Long createReport(ReportRequestDTO dto, List<MultipartFile> photos) {
-        // 1. Pin 엔티티 생성
-        Pin pin = Pin.builder()
-                .pinX(dto.getPinX())
-                .pinY(dto.getPinY())
-                .pinCreatedAt(LocalDateTime.now())
-                .build();
-        pinRepository.save(pin);
-
+        // 해당위치 핀 있는경우 해당 핀 반환, 없는경우 핀 생성후 반환
+        Pin pin = pinService.addPinFromReportAndGet(dto.getPinX(),dto.getPinY(),NEARBY_DISTANCE_METERS);
         // 2. Trash 엔티티 생성 (kg, L 분리)
         Trash.TrashBuilder trashBuilder = Trash.builder();
         trashBuilder.trashKg(dto.getTrashKg() != null ? dto.getTrashKg() : 0.0);
@@ -102,5 +98,6 @@ public class ReportService {
         }).collect(Collectors.toList());
     }
 
-    // Local file save logic removed; now handled by S3StorageService.
+   @Transactional
+    public
 }
