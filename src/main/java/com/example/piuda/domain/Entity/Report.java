@@ -44,6 +44,6 @@ public class Report {
     private Pin pin;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "org_id", nullable = false)
+    @JoinColumn(name = "org_id")
     private Org org;
 }
