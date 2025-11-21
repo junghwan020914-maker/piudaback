@@ -61,33 +61,36 @@ public class NotifyService {
         return true;
     }
 
-    // 제보 생성: 바로 ACCEPT로 저장하고, 즉시 빨간 핀 생성/연결, 사진 업로드까지 처리
     @Transactional
-    public Long createAndAccept(NotifyCreateRequestDTO dto, List<MultipartFile> photos) {
+    public boolean rejectNotify(Long notifyId) {
+        Optional<Notify> opt = notifyRepository.findById(notifyId);
+        if (opt.isEmpty()) {
+            return false;
+        }
+        Notify notify = opt.get();
+        if (opt.get().getNotifyStatus() == NotifyStatus.WAIT) {
+            notify.setNotifyStatus(NotifyStatus.REJECT);
+        }
+        return true;
+    }
+    // 제보 생성: Wait으로 저장하고, 사진 업로드까지 처리
+    @Transactional
+    public Long createNotify(NotifyCreateRequestDTO dto, List<MultipartFile> photos) {
         if (dto == null || dto.getX() == null || dto.getY() == null) {
             throw new IllegalArgumentException("payload.x, payload.y 값은 필수입니다.");
         }
-        // 1) 핀 확보 (근처 없으면 RED 생성)
-        double x = dto.getX();
-        double y = dto.getY();
-        Pin pin = pinService.addPinFromNotifyAndGet(x, y, NEARBY_DISTANCE_METERS);
-        if (pin == null) {
-            // addPinFromNotifyAndGet 내부에서 보통 생성되므로 null 가능성은 낮지만, 방어적으로 실패 처리
-            throw new IllegalStateException("핀 생성에 실패했습니다.");
-        }
 
-        // 2) 제보 저장 (바로 ACCEPT)
+        // 1) 제보 저장 (바로 ACCEPT)
         Notify notify = Notify.builder()
-                .notifyX(x)
-                .notifyY(y)
+                .notifyX(dto.getX())
+                .notifyY(dto.getY())
                 .notifyCreatedAt(LocalDateTime.now())
                 .notifyContent(dto.getContent())
-                .notifyStatus(NotifyStatus.ACCEPT)
-                .pin(pin)
+                .notifyStatus(NotifyStatus.WAIT)
                 .build();
         Notify saved = notifyRepository.save(notify);
 
-        // 3) 사진 업로드 및 연결
+        // 2) 사진 업로드 및 연결
         if (photos != null && !photos.isEmpty()) {
             for (MultipartFile photo : photos) {
                 String url = storageService.upload(StorageFolder.NOTIFY, photo);
