@@ -98,6 +98,4 @@ public class ReportService {
         }).collect(Collectors.toList());
     }
 
-   @Transactional
-    public
 }
