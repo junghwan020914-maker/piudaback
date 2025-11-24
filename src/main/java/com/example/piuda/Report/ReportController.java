@@ -4,6 +4,7 @@ import com.example.piuda.domain.DTO.ReportRequestDTO;
 import com.example.piuda.domain.DTO.ReportResponseDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -19,8 +20,10 @@ public class ReportController {
     @PostMapping
     public ResponseEntity<?> createReport(
             @RequestPart(value = "report") ReportRequestDTO reportRequestDTO,
-            @RequestPart(value = "photos", required = false) List<MultipartFile> photos) {
-        
+            @RequestPart(value = "photos", required = false) List<MultipartFile> photos,
+            Authentication authentication
+            ) {
+
         // 각 이미지 파일 크기 검증 (10MB 제한)
         if (photos != null) {
             for (MultipartFile photo : photos) {
@@ -31,7 +34,7 @@ public class ReportController {
             }
         }
 
-        return ResponseEntity.ok(reportService.createReport(reportRequestDTO, photos));
+        return ResponseEntity.ok(reportService.createReport(reportRequestDTO, photos, authentication));
     }
 
     @GetMapping
