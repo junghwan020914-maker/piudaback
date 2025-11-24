@@ -1,5 +1,9 @@
 package com.example.piuda.Dashboard;
 
+import com.example.piuda.Admin.AdminRepository;
+import com.example.piuda.AdminAccum.AdminAccumRepository;
+import com.example.piuda.Notify.NotifyRepository;
+import com.example.piuda.NotifyPhoto.NotifyPhotoRepository;
 import com.example.piuda.Org.OrgRepository;
 import com.example.piuda.OrgAccum.OrgAccumRepository;
 import com.example.piuda.Report.ReportRepository;
@@ -7,10 +11,7 @@ import com.example.piuda.ReportPhoto.ReportPhotoRepository;
 import com.example.piuda.User.UserRepository;
 import com.example.piuda.domain.DTO.DashboardResponseDTO;
 import com.example.piuda.domain.DTO.ReportResponseDTO;
-import com.example.piuda.domain.Entity.Org;
-import com.example.piuda.domain.Entity.OrgAccum;
-import com.example.piuda.domain.Entity.Report;
-import com.example.piuda.domain.Entity.User;
+import com.example.piuda.domain.Entity.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,10 @@ public class DashboardService {
     private final ReportRepository reportRepository;
     private final ReportPhotoRepository reportPhotoRepository;
     private final UserRepository userRepository;
+    private final AdminRepository adminRepository;
+    private final AdminAccumRepository adminAccumRepository;
+    private final NotifyRepository notifyRepository;
+    private final NotifyPhotoRepository notifyPhotoRepository;
 
     /**
      * 단체 대시보드 데이터 조회
@@ -63,5 +68,42 @@ public class DashboardService {
         
         // 6. DashboardResponseDTO 생성 및 반환
         return DashboardResponseDTO.OrgDashboardDTO.from(orgAccum, reportDTOs);
+    }
+
+    /**
+     * 관리자 대시보드 데이터 조회
+     * @param email 로그인한 사용자의 이메일
+     * @return 관리자 대시보드 데이터
+     */
+    @Transactional(readOnly = true)
+    public DashboardResponseDTO.AdminDashboardDTO getAdminDashboard(String email) {
+        // 1. 이메일로 User 조회
+        User user = userRepository.findByUserEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+        
+        // 2. User로 Admin 조회
+        Admin admin = adminRepository.findByUser(user)
+                .orElseThrow(() -> new IllegalArgumentException("관리자 정보를 찾을 수 없습니다."));
+        
+        // 3. Admin으로 AdminAccum 조회
+        AdminAccum adminAccum = adminAccumRepository.findByAdmin(admin)
+                .orElseThrow(() -> new IllegalArgumentException("누적 데이터를 찾을 수 없습니다."));
+        
+        // 4. 모든 제보 목록 조회
+        List<Notify> notifies = notifyRepository.findAll();
+        
+        // 5. Notify를 NotifyDTO로 변환
+        List<DashboardResponseDTO.NotifyDTO> notifyDTOs = notifies.stream()
+                .map(notify -> {
+                    List<String> photoUrls = notifyPhotoRepository.findByNotify(notify)
+                            .stream()
+                            .map(photo -> photo.getNphotoPath())
+                            .collect(Collectors.toList());
+                    return DashboardResponseDTO.NotifyDTO.from(notify, photoUrls);
+                })
+                .collect(Collectors.toList());
+        
+        // 6. DashboardResponseDTO 생성 및 반환
+        return DashboardResponseDTO.AdminDashboardDTO.from(adminAccum, notifyDTOs);
     }
 }
