@@ -22,13 +22,19 @@ public class NotifyController {
         boolean ok = notifyService.acceptNotify(id);
         return ok ? "ACCEPT 처리 및 핀 업데이트 완료" : "대상 없음 또는 처리 실패";
     }
+    // WAIT -> REJECT 상태 변경
+    @PostMapping("/{id}/reject")
+    public String reject(@PathVariable Long id) {
+        boolean ok = notifyService.rejectNotify(id);
+        return ok ? "reject 처리 완료" : "대상 없음 또는 처리 실패";
+    }
 
     // 제보 생성: 바로 ACCEPT 저장 + RED 핀 생성/연결 + 사진 업로드
     @PostMapping(consumes = {"multipart/form-data"})
     public ResponseEntity<NotifyCreateResponseDTO> create(
             @RequestPart("payload") NotifyCreateRequestDTO payload,
             @RequestPart(value = "photos", required = false) List<MultipartFile> photos) {
-        Long notifyId = notifyService.createAndAccept(payload, photos);
+        Long notifyId = notifyService.createNotify(payload, photos);
         // notifyId로 핀ID, 사진URL 목록 조회
         NotifyCreateResponseDTO dto = notifyService.buildCreateResponse(notifyId);
         return ResponseEntity.ok(dto);

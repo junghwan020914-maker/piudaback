@@ -31,6 +31,9 @@ public class Org {
     @Column(name = "org_site", length = 50)
     private String orgSite;
 
+    @Column(name = "org_name", length = 20)
+    private String orgName;
+
     @OneToOne
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
