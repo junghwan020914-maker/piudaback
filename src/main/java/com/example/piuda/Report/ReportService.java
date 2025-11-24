@@ -1,15 +1,15 @@
 package com.example.piuda.Report;
 
+import com.example.piuda.Org.OrgRepository;
 import com.example.piuda.Pin.PinRepository;
 import com.example.piuda.ReportPhoto.ReportPhotoRepository;
 import com.example.piuda.Trash.TrashRepository;
+import com.example.piuda.User.UserRepository;
 import com.example.piuda.domain.DTO.ReportRequestDTO;
 import com.example.piuda.domain.DTO.ReportResponseDTO;
-import com.example.piuda.domain.Entity.Pin;
-import com.example.piuda.domain.Entity.Report;
-import com.example.piuda.domain.Entity.ReportPhoto;
-import com.example.piuda.domain.Entity.Trash;
+import com.example.piuda.domain.Entity.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -31,10 +31,12 @@ public class ReportService {
     private final ReportPhotoRepository reportPhotoRepository;
     private final StorageService storageService;
     private final PinService pinService;
+    private final UserRepository userRepository;
+    private final OrgRepository orgRepository;
     // 핀 중복 판별 거리(임시 하드코딩)
     private static final double NEARBY_DISTANCE_METERS = 500.0;
 
-    public Long createReport(ReportRequestDTO dto, List<MultipartFile> photos) {
+    public Long createReport(ReportRequestDTO dto, List<MultipartFile> photos, Authentication authentication) {
         // 해당위치 핀 있는경우 해당 핀 반환, 없는경우 핀 생성후 반환
         Pin pin = pinService.addPinFromReportAndGet(dto.getPinX(),dto.getPinY(),NEARBY_DISTANCE_METERS);
         // 2. Trash 엔티티 생성 (kg, L 분리)
@@ -57,7 +59,28 @@ public class ReportService {
 
         trashRepository.save(trash);
 
-        // 3. Report 엔티티 생성
+        // 3. 로그인 정보에 따라 writer와 writerType 설정
+        User writer = null;
+        Org org = null;
+        Report.WriterType writerType = Report.WriterType.ANONYMOUS;
+        
+        if (authentication != null && authentication.isAuthenticated() && !"anonymousUser".equals(authentication.getPrincipal())) {
+            String email = authentication.getName();
+            writer = userRepository.findByUserEmail(email).orElse(null);
+            
+            if (writer != null) {
+                // 단체 계정인지 확인
+                org = orgRepository.findByUser(writer).orElse(null);
+                
+                if (org != null) {
+                    writerType = Report.WriterType.GROUP;
+                } else {
+                    writerType = Report.WriterType.PRIVATE;
+                }
+            }
+        }
+
+        // 4. Report 엔티티 생성
         Report report = Report.builder()
                 .reportName(dto.getReportName())
                 .reportPeople(dto.getReportPeople())
@@ -67,11 +90,14 @@ public class ReportService {
                 .reportContent(dto.getReportContent())
                 .pin(pin)
                 .trash(trash)
+                .writer(writer)
+                .writerType(writerType)
+                .org(org)
                 .build();
         
         Report savedReport = reportRepository.save(report);
 
-        // 4. 사진이 있다면 ReportPhoto 엔티티들 생성
+        // 5. 사진이 있다면 ReportPhoto 엔티티들 생성
         if (photos != null && !photos.isEmpty()) {
             for (MultipartFile photo : photos) {
                 String url = storageService.upload(StorageFolder.REPORT, photo);

@@ -46,4 +46,18 @@ public class Report {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "org_id")
     private Org org;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "writer_id")
+    private User writer;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "writer_type", nullable = false, length = 20)
+    private WriterType writerType;
+
+    public enum WriterType {
+        GROUP,     // 로그인 없이 작성한 후기
+        PRIVATE,          // 로그인한 개인
+        ANONYMOUS   // 단체 계정으로 작성한 후기
+    }
 }
