@@ -54,11 +54,31 @@ public class AccumulationService {
                 Double totalL = reportRepository.sumLByOrg(org);
                 Integer totalAct = reportRepository.countByOrg(org);
                 
+                // 쓰레기 세부 항목 집계
+                Integer totalPet = reportRepository.sumTrashPetByOrg(org);
+                Integer totalBag = reportRepository.sumTrashBagByOrg(org);
+                Integer totalNet = reportRepository.sumTrashNetByOrg(org);
+                Integer totalGlass = reportRepository.sumTrashGlassByOrg(org);
+                Integer totalCan = reportRepository.sumTrashCanByOrg(org);
+                Integer totalRope = reportRepository.sumTrashRopeByOrg(org);
+                Integer totalCloth = reportRepository.sumTrashClothByOrg(org);
+                Integer totalElec = reportRepository.sumTrashElecByOrg(org);
+                Integer totalEtc = reportRepository.sumTrashEtcByOrg(org);
+                
                 // 값이 null인 경우 0으로 처리
                 orgAccum.setAccumPeople(totalPeople != null ? totalPeople : 0);
                 orgAccum.setAccumKg(totalKg != null ? totalKg : 0.0);
                 orgAccum.setAccumL(totalL != null ? totalL : 0.0);
                 orgAccum.setAccumAct(totalAct != null ? totalAct : 0);
+                orgAccum.setAccumtrashPet(totalPet);
+                orgAccum.setAccumtrashBag(totalBag);
+                orgAccum.setAccumtrashNet(totalNet);
+                orgAccum.setAccumtrashGlass(totalGlass);
+                orgAccum.setAccumtrashCan(totalCan);
+                orgAccum.setAccumtrashRope(totalRope);
+                orgAccum.setAccumtrashCloth(totalCloth);
+                orgAccum.setAccumtrashElec(totalElec);
+                orgAccum.setAccumtrashEtc(totalEtc);
                 orgAccum.setAccumUpdatedAt(LocalDateTime.now());
                 
                 orgAccumRepository.save(orgAccum);
@@ -92,6 +112,17 @@ public class AccumulationService {
         Integer totalAct = reportRepository.countTotal();
         Integer totalOrg = reportRepository.countDistinctOrgs();
         
+        // 전체 쓰레기 세부 항목 집계
+        Integer totalPet = reportRepository.sumTotalTrashPet();
+        Integer totalBag = reportRepository.sumTotalTrashBag();
+        Integer totalNet = reportRepository.sumTotalTrashNet();
+        Integer totalGlass = reportRepository.sumTotalTrashGlass();
+        Integer totalCan = reportRepository.sumTotalTrashCan();
+        Integer totalRope = reportRepository.sumTotalTrashRope();
+        Integer totalCloth = reportRepository.sumTotalTrashCloth();
+        Integer totalElec = reportRepository.sumTotalTrashElec();
+        Integer totalEtc = reportRepository.sumTotalTrashEtc();
+        
         for (Admin admin : allAdmins) {
             try {
                 // 해당 관리자의 누적 데이터 조회 또는 생성
@@ -109,6 +140,15 @@ public class AccumulationService {
                 adminAccum.setAccumKg(totalKg != null ? totalKg : 0.0);
                 adminAccum.setAccumL(totalL != null ? totalL : 0.0);
                 adminAccum.setAccumAct(totalAct != null ? totalAct : 0);
+                adminAccum.setAccumtrashPet(totalPet);
+                adminAccum.setAccumtrashBag(totalBag);
+                adminAccum.setAccumtrashNet(totalNet);
+                adminAccum.setAccumtrashGlass(totalGlass);
+                adminAccum.setAccumtrashCan(totalCan);
+                adminAccum.setAccumtrashRope(totalRope);
+                adminAccum.setAccumtrashCloth(totalCloth);
+                adminAccum.setAccumtrashElec(totalElec);
+                adminAccum.setAccumtrashEtc(totalEtc);
                 adminAccum.setAccumUpdatedAt(LocalDateTime.now());
                 
                 adminAccumRepository.save(adminAccum);
