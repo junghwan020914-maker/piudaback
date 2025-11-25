@@ -48,13 +48,14 @@ public class UserService {
     }
 
     // --- DTOs for auth ---
-    public static record LoginRequest(String email, String password) {
+    public static record LoginRequest(String email, String password, String turnstileToken) {
         public String getEmail() {
             return email;
         }
         public String getPassword() {
             return password;
         }
+        public String getTurnstileToken() { return turnstileToken; }
     }
     public static record TokenResponse(String accessToken, String tokenType) {}
     public static record MeResponse(Long userId, String userName, String userEmail, String userPhone, String role) {}

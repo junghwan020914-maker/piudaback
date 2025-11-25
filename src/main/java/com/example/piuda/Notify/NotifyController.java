@@ -2,6 +2,7 @@ package com.example.piuda.Notify;
 
 import com.example.piuda.domain.DTO.NotifyCreateRequestDTO;
 import com.example.piuda.domain.DTO.NotifyCreateResponseDTO;
+import com.example.piuda.security.TurnstileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,7 +15,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class NotifyController {
     private final NotifyService notifyService;
-
+    private final TurnstileService turnstileService;
 
     // WAIT -> ACCEPT 상태 변경과 동시에 핀 자동 연결/생성
     @PostMapping("/{id}/accept")
@@ -34,6 +35,13 @@ public class NotifyController {
     public ResponseEntity<NotifyCreateResponseDTO> create(
             @RequestPart("payload") NotifyCreateRequestDTO payload,
             @RequestPart(value = "photos", required = false) List<MultipartFile> photos) {
+
+        // Turnstile 검증 추가
+        if (!turnstileService.verifyToken(payload.getTurnstileToken())) {
+            return ResponseEntity.badRequest().build(); // body 없이
+            // 또는 에러용 DTO 반환
+        }
+
         Long notifyId = notifyService.createNotify(payload, photos);
         // notifyId로 핀ID, 사진URL 목록 조회
         NotifyCreateResponseDTO dto = notifyService.buildCreateResponse(notifyId);

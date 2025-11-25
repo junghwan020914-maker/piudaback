@@ -20,6 +20,7 @@ public class ReportRequestDTO {
     private LocalDate reportDate;         // 활동 날짜 (yyyy-MM-dd)
     private String reportDetailLocation;  // 상세 위치 (선택)
     private String reportContent;         // 정성 기록 (선택)
+    private String turnstileToken;
 
     // 핀 좌표
     private Double pinX;                  // 위도

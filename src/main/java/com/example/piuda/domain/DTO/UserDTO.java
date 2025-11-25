@@ -32,4 +32,6 @@ public class UserDTO {
     @NotBlank(message = "전화번호는 필수입니다.")
     @Size(max = 30, message = "전화번호는 30자 이하여야 합니다.")
     private String userPhone;
+
+    private String turnstileToken;
 }

@@ -10,6 +10,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import com.example.piuda.security.TurnstileService;
+
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -17,15 +20,24 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     private final UserService userService;
+    private final TurnstileService turnstileService;
 
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@Valid @RequestBody UserDTO dto) {
+        if (!turnstileService.verifyToken(dto.getTurnstileToken())) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Bot verification failed"));
+        }
+
         userService.signup(dto);
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/login")
-    public ResponseEntity<TokenResponse> login(@RequestBody LoginRequest req) {
+    public ResponseEntity<?> login(@RequestBody LoginRequest req) {
+        if (!turnstileService.verifyToken(req.getTurnstileToken())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Bot verification failed"));
+        }
         return ResponseEntity.ok(userService.login(req));
     }
 
