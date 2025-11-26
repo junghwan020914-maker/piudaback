@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @Table(name = "Private_Activity", uniqueConstraints = {
-        @UniqueConstraint(name = "uq_private_report", columnNames = {"private_id", "report_id"})
+        @UniqueConstraint(name = "uq_user_report", columnNames = {"user_id", "report_id"})
 })
 public class PrivateActivity {
     @Id
@@ -23,8 +23,8 @@ public class PrivateActivity {
     private LocalDateTime CreatedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "private_id", nullable = false)
-    private Private privateUser;
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "report_id", nullable = false)

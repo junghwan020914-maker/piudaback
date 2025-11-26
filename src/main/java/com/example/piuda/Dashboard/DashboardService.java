@@ -9,6 +9,7 @@ import com.example.piuda.OrgAccum.OrgAccumRepository;
 import com.example.piuda.Report.ReportRepository;
 import com.example.piuda.ReportPhoto.ReportPhotoRepository;
 import com.example.piuda.User.UserRepository;
+import com.example.piuda.PrivateActivity.PrivateActivityService;
 import com.example.piuda.domain.DTO.DashboardResponseDTO;
 import com.example.piuda.domain.DTO.ReportResponseDTO;
 import com.example.piuda.domain.Entity.*;
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -32,6 +34,7 @@ public class DashboardService {
     private final AdminAccumRepository adminAccumRepository;
     private final NotifyRepository notifyRepository;
     private final NotifyPhotoRepository notifyPhotoRepository;
+    private final PrivateActivityService privateActivityService;
 
     /**
      * 단체 대시보드 데이터 조회
