@@ -103,6 +103,8 @@ public class DashboardResponseDTO {
         private Double accumKg;           // 누적 kg
         private Double accumL;            // 누적 L
         private Integer accumAct;         // 누적 활동 수
+        private Integer accumNotify;      // 누적 제보 수
+        private Integer accumUser;        // 누적 회원 수
         private LocalDateTime accumUpdatedAt; // 마지막 업데이트 시간
         
         // 쓰레기 세부 항목
@@ -132,6 +134,8 @@ public class DashboardResponseDTO {
                     .accumKg(adminAccum.getAccumKg())
                     .accumL(adminAccum.getAccumL())
                     .accumAct(adminAccum.getAccumAct())
+                    .accumNotify(adminAccum.getAccumNotify())
+                    .accumUser(adminAccum.getAccumUser())
                     .accumUpdatedAt(adminAccum.getAccumUpdatedAt())
                     .accumTrashPet(adminAccum.getAccumtrashPet())
                     .accumTrashBag(adminAccum.getAccumtrashBag())
