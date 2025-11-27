@@ -25,7 +25,7 @@ public class PrivateActivityController {
      * @return 생성된 PrivateActivity
      */
     @PostMapping("/like/{reportId}")
-    public ResponseEntity<PrivateActivity> addReportLike(
+    public ResponseEntity<?> addReportLike(
             Authentication authentication,
             @PathVariable Long reportId) {
         if (authentication == null) {
@@ -36,8 +36,13 @@ public class PrivateActivityController {
         User user = userRepository.findByUserEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
         
-        PrivateActivity privateActivity = privateActivityService.addReportLike(user.getUserId(), reportId);
-        return ResponseEntity.ok(privateActivity);
+        // PRIVATE 역할 체크
+        if (user.getUserRole() != User.UserRole.PRIVATE) {
+            return ResponseEntity.badRequest().body("개인 사용자만 좋아요를 누를 수 있습니다.");
+        }
+        
+        privateActivityService.addReportLike(user.getUserId(), reportId);
+        return ResponseEntity.ok("관심활동 추가되었습니다");
     }
 
     /**
