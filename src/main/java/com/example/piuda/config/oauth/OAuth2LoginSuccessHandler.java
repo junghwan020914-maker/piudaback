@@ -2,6 +2,7 @@ package com.example.piuda.config.oauth;
 
 import com.example.piuda.domain.Entity.User;
 import com.example.piuda.User.UserRepository;
+import com.example.piuda.User.UserService;
 import com.example.piuda.config.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ import java.util.Map;
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
     private final UserRepository userRepository;
+    private final UserService userService;          // ✅ 추가
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -31,7 +33,9 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private String frontRedirectUrl;
 
     @Override
-    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException {
+    public void onAuthenticationSuccess(HttpServletRequest request,
+                                        HttpServletResponse response,
+                                        Authentication authentication) throws IOException {
         DefaultOAuth2User principal = (DefaultOAuth2User) authentication.getPrincipal();
 
         String email = (String) principal.getAttributes().get("email");
@@ -51,31 +55,30 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
             } catch (Exception ignore) {}
         }
 
-        // 존재하면 로그인, 없으면 즉시 가입 (요구: 이름/이메일/비번/전화번호 모두 필요)
+        // 존재하면 로그인, 없으면 즉시 가입
         User user = userRepository.findByUserEmail(email).orElse(null);
         if (user == null) {
             if (!StringUtils.hasText(phone) || !StringUtils.hasText(rawPassword)) {
-                // 필수 값이 없으면 프런트로 다시 보내 사용자 입력받게 함
                 String redirect = frontRedirectUrl +
                         "?error=missing_phone_or_password&email=" + url(email) +
                         "&name=" + url(name);
                 response.sendRedirect(redirect);
                 return;
             }
-            user = User.builder()
-                    .userName(name != null ? name : "USER")
-                    .userEmail(email)
-                    .userPw("{noop}" + rawPassword) // ← 여기서는 일단 평문 저장하지 말고, 실제로는 PasswordEncoder로 암호화 저장!
-                    .userPhone(phone)
-                    .build();
-            // ⚠️ 위 한 줄은 데모용. 실제로는 Service를 주입해 BCrypt로 인코딩하세요.
-            userRepository.save(user);
+
+            // ✅ 여기서 UserService를 통해 회원 생성 (비번 인코딩 포함)
+            user = userService.registerOAuthUser(name, email, phone, rawPassword);
         }
 
-        String token = jwtTokenProvider.createToken(user.getUserId(), user.getUserEmail(), user.getUserRole().name());
+        // JWT 발급
+        String token = jwtTokenProvider.createToken(
+                user.getUserId(), user.getUserEmail(), user.getUserRole().name()
+        );
         String redirect = frontRedirectUrl + "?token=" + url(token);
         response.sendRedirect(redirect);
     }
 
-    private static String url(String s) { return URLEncoder.encode(s == null ? "" : s, StandardCharsets.UTF_8); }
+    private static String url(String s) {
+        return URLEncoder.encode(s == null ? "" : s, StandardCharsets.UTF_8);
+    }
 }
