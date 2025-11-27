@@ -16,6 +16,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -66,8 +68,23 @@ public class DashboardService {
                 })
                 .collect(Collectors.toList());
         
-        // 6. DashboardResponseDTO 생성 및 반환
-        return DashboardResponseDTO.OrgDashboardDTO.from(orgAccum, reportDTOs);
+        // 6. 월별 통계 데이터 생성 (현재 년도 기준 1월~12월)
+        int currentYear = LocalDateTime.now().getYear();
+        List<DashboardResponseDTO.MonthlyStatsDTO> monthlyStats = new ArrayList<>();
+        
+        for (int month = 1; month <= 12; month++) {
+            Double kg = reportRepository.sumKgByOrgAndMonth(org, currentYear, month);
+            Long reportCount = reportRepository.countByOrgAndMonth(org, currentYear, month);
+            
+            monthlyStats.add(DashboardResponseDTO.MonthlyStatsDTO.builder()
+                    .month(month)
+                    .kg(kg != null ? kg : 0.0)
+                    .reportCount(reportCount != null ? reportCount : 0L)
+                    .build());
+        }
+        
+        // 7. DashboardResponseDTO 생성 및 반환
+        return DashboardResponseDTO.OrgDashboardDTO.from(orgAccum, reportDTOs, monthlyStats);
     }
 
     /**
@@ -103,7 +120,22 @@ public class DashboardService {
                 })
                 .collect(Collectors.toList());
         
-        // 6. DashboardResponseDTO 생성 및 반환
-        return DashboardResponseDTO.AdminDashboardDTO.from(adminAccum, notifyDTOs);
+        // 6. 월별 통계 데이터 생성 (현재 년도 기준 1월~12월, 전체 사용자 후기 기준)
+        int currentYear = LocalDateTime.now().getYear();
+        List<DashboardResponseDTO.MonthlyStatsDTO> monthlyStats = new ArrayList<>();
+        
+        for (int month = 1; month <= 12; month++) {
+            Double kg = reportRepository.sumTotalKgByMonth(currentYear, month);
+            Long reportCount = reportRepository.countTotalByMonth(currentYear, month);
+            
+            monthlyStats.add(DashboardResponseDTO.MonthlyStatsDTO.builder()
+                    .month(month)
+                    .kg(kg != null ? kg : 0.0)
+                    .reportCount(reportCount != null ? reportCount : 0L)
+                    .build());
+        }
+        
+        // 7. DashboardResponseDTO 생성 및 반환
+        return DashboardResponseDTO.AdminDashboardDTO.from(adminAccum, notifyDTOs, monthlyStats);
     }
 }

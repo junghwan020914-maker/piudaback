@@ -12,6 +12,19 @@ import java.util.List;
 public class DashboardResponseDTO {
 
     /**
+     * 월별 통계 DTO (막대그래프용)
+     */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class MonthlyStatsDTO {
+        private Integer month;        // 월 (1~12)
+        private Double kg;            // 해당 월 수거량 (kg)
+        private Long reportCount;     // 해당 월 후기 작성 횟수
+    }
+
+    /**
      * 단체 대시보드 DTO
      */
     @Getter
@@ -44,10 +57,13 @@ public class DashboardResponseDTO {
         // 해당 단체가 작성한 후기 목록
         private List<ReportResponseDTO> reports;
         
+        // 월별 통계 (1월~12월 막대그래프용)
+        private List<MonthlyStatsDTO> monthlyStats;
+        
         /**
          * OrgAccum 엔티티로부터 DTO 생성
          */
-        public static OrgDashboardDTO from(OrgAccum orgAccum, List<ReportResponseDTO> reports) {
+        public static OrgDashboardDTO from(OrgAccum orgAccum, List<ReportResponseDTO> reports, List<MonthlyStatsDTO> monthlyStats) {
             return OrgDashboardDTO.builder()
                     .orgId(orgAccum.getOrg().getOrgId())
                     .orgName(orgAccum.getOrg().getOrgName())
@@ -66,6 +82,7 @@ public class DashboardResponseDTO {
                     .accumTrashElec(orgAccum.getAccumtrashElec())
                     .accumTrashEtc(orgAccum.getAccumtrashEtc())
                     .reports(reports)
+                    .monthlyStats(monthlyStats)
                     .build();
         }
     }
@@ -102,10 +119,13 @@ public class DashboardResponseDTO {
         // 제보 목록
         private List<NotifyDTO> notifies;
         
+        // 월별 통계 (1월~12월 막대그래프용)
+        private List<MonthlyStatsDTO> monthlyStats;
+        
         /**
          * AdminAccum 엔티티로부터 DTO 생성
          */
-        public static AdminDashboardDTO from(com.example.piuda.domain.Entity.AdminAccum adminAccum, List<NotifyDTO> notifies) {
+        public static AdminDashboardDTO from(com.example.piuda.domain.Entity.AdminAccum adminAccum, List<NotifyDTO> notifies, List<MonthlyStatsDTO> monthlyStats) {
             return AdminDashboardDTO.builder()
                     .adminId(adminAccum.getAdmin().getAdminId())
                     .accumOrg(adminAccum.getAccumOrg())
@@ -123,6 +143,7 @@ public class DashboardResponseDTO {
                     .accumTrashElec(adminAccum.getAccumtrashElec())
                     .accumTrashEtc(adminAccum.getAccumtrashEtc())
                     .notifies(notifies)
+                    .monthlyStats(monthlyStats)
                     .build();
         }
     }

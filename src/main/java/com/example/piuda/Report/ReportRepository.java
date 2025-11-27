@@ -55,6 +55,20 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     @Query("SELECT COALESCE(SUM(r.trash.trashEtc), 0) FROM Report r WHERE r.org = :org")
     Integer sumTrashEtcByOrg(@Param("org") Org org);
     
+    // 단체별 월별 수거량(kg) 집계 (1월~12월)
+    @Query("SELECT COALESCE(SUM(r.trash.trashKg), 0.0) FROM Report r " +
+           "WHERE r.org = :org " +
+           "AND FUNCTION('YEAR', r.reportDate) = :year " +
+           "AND FUNCTION('MONTH', r.reportDate) = :month")
+    Double sumKgByOrgAndMonth(@Param("org") Org org, @Param("year") int year, @Param("month") int month);
+    
+    // 단체별 월별 후기 작성 횟수 집계 (1월~12월)
+    @Query("SELECT COUNT(r) FROM Report r " +
+           "WHERE r.org = :org " +
+           "AND FUNCTION('YEAR', r.reportDate) = :year " +
+           "AND FUNCTION('MONTH', r.reportDate) = :month")
+    Long countByOrgAndMonth(@Param("org") Org org, @Param("year") int year, @Param("month") int month);
+    
     @Query("SELECT SUM(r.trash.trashKg) FROM Report r")
     Double sumTotalKg();
     
@@ -94,4 +108,16 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     
     @Query("SELECT COALESCE(SUM(r.trash.trashEtc), 0) FROM Report r")
     Integer sumTotalTrashEtc();
+    
+    // 전체 월별 수거량(kg) 집계 (1월~12월)
+    @Query("SELECT COALESCE(SUM(r.trash.trashKg), 0.0) FROM Report r " +
+           "WHERE FUNCTION('YEAR', r.reportDate) = :year " +
+           "AND FUNCTION('MONTH', r.reportDate) = :month")
+    Double sumTotalKgByMonth(@Param("year") int year, @Param("month") int month);
+    
+    // 전체 월별 후기 작성 횟수 집계 (1월~12월)
+    @Query("SELECT COUNT(r) FROM Report r " +
+           "WHERE FUNCTION('YEAR', r.reportDate) = :year " +
+           "AND FUNCTION('MONTH', r.reportDate) = :month")
+    Long countTotalByMonth(@Param("year") int year, @Param("month") int month);
 }
