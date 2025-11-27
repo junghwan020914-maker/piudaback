@@ -25,37 +25,29 @@ public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final CustomOAuth2UserService customOAuth2UserService;
-    private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    // ✅ 핸들러는 여기 메서드 파라미터로 주입 받기
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http,
+                                           OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler) throws Exception {
         http
-                // JWT 사용하니까 CSRF, 세션 비활성화
                 .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // 기본 로그인 방지 (formLogin, httpBasic)
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
-
-                // ✅ 일단 모든 요청 허용 (디버깅용)
                 .authorizeHttpRequests(auth -> auth
                         .anyRequest().permitAll()
                 )
-
-                // OAuth2 로그인 설정 (카카오)
                 .oauth2Login(oauth -> oauth
                         .userInfoEndpoint(u -> u.userService(customOAuth2UserService))
                         .successHandler(oAuth2LoginSuccessHandler)
                 )
-
-                // JWT 필터는 그대로 두되, 인증은 강제 안 함 (토큰 있으면만 동작)
                 .addFilterBefore(
                         new JwtAuthenticationFilter(jwtTokenProvider),
                         UsernamePasswordAuthenticationFilter.class
