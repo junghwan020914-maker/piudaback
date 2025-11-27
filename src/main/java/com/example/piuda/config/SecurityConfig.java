@@ -6,7 +6,6 @@ import com.example.piuda.config.oauth.CustomOAuth2UserService;
 import com.example.piuda.config.oauth.OAuth2LoginSuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.*;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -45,22 +44,9 @@ public class SecurityConfig {
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
 
-                // 요청별 권한 설정
+                // ✅ 일단 모든 요청 허용 (디버깅용)
                 .authorizeHttpRequests(auth -> auth
-                        // 회원가입, 일반 로그인 API는 열어둘지 말지 선택 (지금은 열어둔 상태)
-                        .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login").permitAll()
-
-                        // OAuth2 인가/콜백 관련 엔드포인트 허용
-                        .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
-
-                        // 정적 리소스/헬스체크 등 필요 시 허용
-                        .requestMatchers(
-                                "/", "/index.html",
-                                "/css/**", "/js/**", "/images/**"
-                        ).permitAll()
-
-                        // 그 외 나머지 API는 인증 필요
-                        .anyRequest().authenticated()
+                        .anyRequest().permitAll()
                 )
 
                 // OAuth2 로그인 설정 (카카오)
@@ -69,7 +55,7 @@ public class SecurityConfig {
                         .successHandler(oAuth2LoginSuccessHandler)
                 )
 
-                // 매 요청마다 JWT 인증 필터 태우기
+                // JWT 필터는 그대로 두되, 인증은 강제 안 함 (토큰 있으면만 동작)
                 .addFilterBefore(
                         new JwtAuthenticationFilter(jwtTokenProvider),
                         UsernamePasswordAuthenticationFilter.class
@@ -81,13 +67,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        // 프론트 개발 서버 / 배포 서버 출처 등록 (슬래시 X)
-        cfg.setAllowedOrigins(List.of(
-                "http://localhost:8080",
-                "http://localhost:8081",
-                "https://piuda-front.vercel.app",
-                "https://piuda-front-git-dev-minkyeong-chois-projects.vercel.app"
-        ));
+
+        // ✅ 모든 Origin/Method/Header 허용 (디버깅용)
+        cfg.setAllowedOriginPatterns(List.of("*")); // setAllowedOrigins("*") 대신 이거 권장
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));
         cfg.setAllowCredentials(true);
