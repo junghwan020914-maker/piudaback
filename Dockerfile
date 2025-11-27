@@ -1,10 +1,20 @@
-# Dockerfile
+# 1단계: 빌드용 (Gradle + JDK)
+FROM gradle:8.7-jdk17 AS builder
+WORKDIR /workspace
+
+# Gradle 캐시를 좀 더 잘 쓰고 싶으면 settings.gradle, build.gradle, gradle 폴더 먼저 COPY하고
+# 그다음에 소스 COPY해도 됨. 일단은 심플하게 전체 복사.
+COPY . .
+
+# 여기서 항상 깨끗하게 빌드
+RUN ./gradlew clean bootJar --no-daemon
+
+# 2단계: 실행용 (JRE만 있는 가벼운 이미지)
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 
-# 빌드 산출물 JAR 경로는 프로젝트에 맞게 수정 (예: build/libs/*.jar)
-ARG JAR=build/libs/*.jar
-COPY ${JAR} app.jar
+# 빌더 단계에서 만들어진 JAR 복사
+COPY --from=builder /workspace/build/libs/*.jar app.jar
 
 # (선택) JVM 옵션
 ENV JAVA_TOOL_OPTIONS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75"
