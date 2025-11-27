@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -25,7 +26,7 @@ import java.util.Map;
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
     private final UserRepository userRepository;
-    private final UserService userService;          // ✅ 추가
+    private final PasswordEncoder passwordEncoder;      // 🔁 UserService 대신 이걸 사용
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -41,7 +42,6 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         String email = (String) principal.getAttributes().get("email");
         String name  = (String) principal.getAttributes().get("name");
 
-        // (중요) phone/password는 프런트가 state에 base64(JSON)로 실어 보냄
         String state = request.getParameter("state");
         String phone = null;
         String rawPassword = null;
@@ -55,7 +55,6 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
             } catch (Exception ignore) {}
         }
 
-        // 존재하면 로그인, 없으면 즉시 가입
         User user = userRepository.findByUserEmail(email).orElse(null);
         if (user == null) {
             if (!StringUtils.hasText(phone) || !StringUtils.hasText(rawPassword)) {
@@ -66,16 +65,29 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                 return;
             }
 
-            // ✅ 여기서 UserService를 통해 회원 생성 (비번 인코딩 포함)
-            user = userService.registerOAuthUser(name, email, phone, rawPassword);
+            // ✅ 여기서 UserService 대신 직접 회원 생성
+            user = registerOAuthUserInternal(name, email, phone, rawPassword);
         }
 
-        // JWT 발급
         String token = jwtTokenProvider.createToken(
                 user.getUserId(), user.getUserEmail(), user.getUserRole().name()
         );
         String redirect = frontRedirectUrl + "?token=" + url(token);
         response.sendRedirect(redirect);
+    }
+
+    // 🔽 UserService.registerOAuthUser 와 동일한 로직을 이 핸들러 안으로 옮김
+    private User registerOAuthUserInternal(String name, String email, String phone, String rawPassword) {
+        return userRepository.findByUserEmail(email)
+                .orElseGet(() -> {
+                    User newUser = User.builder()
+                            .userName(name != null ? name : "USER")
+                            .userEmail(email)
+                            .userPw(passwordEncoder.encode(rawPassword))
+                            .userPhone(phone)
+                            .build();
+                    return userRepository.save(newUser);
+                });
     }
 
     private static String url(String s) {
