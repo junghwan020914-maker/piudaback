@@ -1,5 +1,6 @@
 package com.example.piuda.User;
 
+import com.example.piuda.AdminAccum.AdminAccumService;
 import com.example.piuda.domain.DTO.UserDTO;
 import com.example.piuda.domain.Entity.User;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final AdminAccumService adminAccumService;
 
     // === 기존 회원가입 ===
     public void signup(UserDTO dto) {
@@ -27,6 +29,9 @@ public class UserService {
                 .userPhone(dto.getUserPhone())
                 .build();
         userRepository.save(user);
+        
+        // 회원 수 증분 업데이트
+        adminAccumService.incrementAdminUserCount();
     }
 
     // === 기존 로그인 ===

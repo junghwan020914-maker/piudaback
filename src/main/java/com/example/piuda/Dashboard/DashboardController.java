@@ -1,5 +1,7 @@
 package com.example.piuda.Dashboard;
 
+import com.example.piuda.AdminAccum.AdminAccumService;
+import com.example.piuda.OrgAccum.OrgAccumService;
 import com.example.piuda.domain.DTO.DashboardResponseDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -15,7 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class DashboardController {
 
     private final DashboardService dashboardService;
-    private final AccumulationService accumulationService;
+    private final OrgAccumService orgAccumService;
+    private final AdminAccumService adminAccumService;
 
     /**
      * 단체 대시보드 조회
@@ -57,7 +60,7 @@ public class DashboardController {
      */
     @PostMapping("/org/accum/update")
     public ResponseEntity<String> updateOrgAccumulation() {
-        accumulationService.updateOrgAccumulation();
+        orgAccumService.updateOrgAccumulation();
         return ResponseEntity.ok("단체 누적 데이터가 업데이트되었습니다.");
     }
 
@@ -67,7 +70,7 @@ public class DashboardController {
      */
     @PostMapping("/admin/accum/update")
     public ResponseEntity<String> updateAdminAccumulation() {
-        accumulationService.updateAdminAccumulation();
+        adminAccumService.updateAdminAccumulation();
         return ResponseEntity.ok("관리자 누적 데이터가 업데이트되었습니다.");
     }
 }

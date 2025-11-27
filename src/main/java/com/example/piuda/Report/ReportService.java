@@ -1,6 +1,8 @@
 package com.example.piuda.Report;
 
+import com.example.piuda.AdminAccum.AdminAccumService;
 import com.example.piuda.Org.OrgRepository;
+import com.example.piuda.OrgAccum.OrgAccumService;
 import com.example.piuda.Pin.PinRepository;
 import com.example.piuda.ReportPhoto.ReportPhotoRepository;
 import com.example.piuda.Trash.TrashRepository;
@@ -16,7 +18,6 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.piuda.storage.StorageService;
 import com.example.piuda.storage.StorageFolder;
 import com.example.piuda.Pin.PinService;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -33,6 +34,8 @@ public class ReportService {
     private final PinService pinService;
     private final UserRepository userRepository;
     private final OrgRepository orgRepository;
+    private final OrgAccumService orgAccumService;
+    private final AdminAccumService adminAccumService;
     // 핀 중복 판별 거리(임시 하드코딩)
     private static final double NEARBY_DISTANCE_METERS = 500.0;
 
@@ -108,6 +111,14 @@ public class ReportService {
                 reportPhotoRepository.save(reportPhoto);
             }
         }
+
+        // 6. 누적 데이터 증분 업데이트 (기존 값에 더하기)
+        if (org != null) {
+            // 단체 후기인 경우 해당 단체의 누적 데이터 증분 업데이트
+            orgAccumService.incrementOrgAccumulation(org, savedReport);
+        }
+        // 관리자 누적 데이터는 항상 증분 업데이트 (전체 통계)
+        adminAccumService.incrementAdminAccumulation(savedReport);
 
         return savedReport.getReportId();
     }
