@@ -51,7 +51,7 @@ public class PrivateActivityService {
         PrivateActivity privateActivity = PrivateActivity.builder()
                 .user(user)
                 .report(report)
-                .CreatedAt(LocalDateTime.now())
+                .createdAt(LocalDateTime.now())
                 .build();
         
         return privateActivityRepository.save(privateActivity);

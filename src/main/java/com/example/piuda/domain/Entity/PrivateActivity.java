@@ -20,7 +20,7 @@ public class PrivateActivity {
     private Long PrivateActivityId;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime CreatedAt;
+    private LocalDateTime createdAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
