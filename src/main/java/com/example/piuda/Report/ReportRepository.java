@@ -120,4 +120,21 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
            "WHERE FUNCTION('YEAR', r.reportDate) = :year " +
            "AND FUNCTION('MONTH', r.reportDate) = :month")
     Long countTotalByMonth(@Param("year") int year, @Param("month") int month);
+    
+    // 개인 대시보드용: 유저가 작성한 후기의 report_id 목록
+    @Query("SELECT r.reportId FROM Report r WHERE r.writer = :user")
+    List<Long> findReportIdsByWriter(@Param("user") com.example.piuda.domain.Entity.User user);
+    
+    // 개인 대시보드용: 유저가 좋아요한 후기의 report_id 목록
+    @Query("SELECT pa.report.reportId FROM PrivateActivity pa WHERE pa.user = :user")
+    List<Long> findReportIdsByLikedUser(@Param("user") com.example.piuda.domain.Entity.User user);
+    
+    // 개인 대시보드용: report_id 목록에 해당하는 월별 후기 개수 (중복 제거)
+    @Query("SELECT COUNT(DISTINCT r) FROM Report r " +
+           "WHERE r.reportId IN :reportIds " +
+           "AND FUNCTION('YEAR', r.reportDate) = :year " +
+           "AND FUNCTION('MONTH', r.reportDate) = :month")
+    Long countDistinctByReportIdsAndMonth(@Param("reportIds") List<Long> reportIds, 
+                                          @Param("year") int year, 
+                                          @Param("month") int month);
 }

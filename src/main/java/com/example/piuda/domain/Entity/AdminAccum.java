@@ -30,6 +30,12 @@ public class AdminAccum {
     @Column(name = "accum_act")
     private Integer accumAct;
 
+    @Column(name = "accum_notify")
+    private Integer accumNotify;
+
+    @Column(name = "accum_user")
+    private Integer accumUser;
+
     @Column(name = "accum_updated_at")
     private LocalDateTime accumUpdatedAt;
 

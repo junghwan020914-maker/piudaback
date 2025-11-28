@@ -1,6 +1,7 @@
 // ...existing code...
 package com.example.piuda.Notify;
 
+import com.example.piuda.AdminAccum.AdminAccumService;
 import com.example.piuda.Pin.PinService;
 import com.example.piuda.domain.DTO.NotifyCreateRequestDTO;
 import com.example.piuda.domain.Entity.Notify;
@@ -25,6 +26,7 @@ public class NotifyService {
     private final PinService pinService;
     private final com.example.piuda.NotifyPhoto.NotifyPhotoRepository notifyPhotoRepository;
     private final StorageService storageService;
+    private final AdminAccumService adminAccumService;
 
     // 핀 중복 판별 거리(임시 하드코딩)
     private static final double NEARBY_DISTANCE_METERS = 500.0;
@@ -60,7 +62,7 @@ public class NotifyService {
         notifyRepository.save(n);
         return true;
     }
-
+    // 제보 거절: WAIT -> REJECT
     @Transactional
     public boolean rejectNotify(Long notifyId) {
         Optional<Notify> opt = notifyRepository.findById(notifyId);
@@ -102,6 +104,8 @@ public class NotifyService {
             }
         }
 
+        // 제보 수 증분 업데이트
+        adminAccumService.incrementAdminNotifyCount();
 
         return saved.getNotifyId();
     }

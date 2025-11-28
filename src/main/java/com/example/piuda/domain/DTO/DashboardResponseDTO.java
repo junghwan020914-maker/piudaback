@@ -103,6 +103,8 @@ public class DashboardResponseDTO {
         private Double accumKg;           // 누적 kg
         private Double accumL;            // 누적 L
         private Integer accumAct;         // 누적 활동 수
+        private Integer accumNotify;      // 누적 제보 수
+        private Integer accumUser;        // 누적 회원 수
         private LocalDateTime accumUpdatedAt; // 마지막 업데이트 시간
         
         // 쓰레기 세부 항목
@@ -132,6 +134,8 @@ public class DashboardResponseDTO {
                     .accumKg(adminAccum.getAccumKg())
                     .accumL(adminAccum.getAccumL())
                     .accumAct(adminAccum.getAccumAct())
+                    .accumNotify(adminAccum.getAccumNotify())
+                    .accumUser(adminAccum.getAccumUser())
                     .accumUpdatedAt(adminAccum.getAccumUpdatedAt())
                     .accumTrashPet(adminAccum.getAccumtrashPet())
                     .accumTrashBag(adminAccum.getAccumtrashBag())
@@ -177,5 +181,48 @@ public class DashboardResponseDTO {
                     .photoUrls(photoUrls)
                     .build();
         }
+    }
+
+    /**
+     * 월별 활동 통계 DTO (개인 대시보드용)
+     */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class MonthlyActivityStatsDTO {
+        private Integer month;        // 월 (1~12)
+        private Long activityCount;   // 해당 월 활동 횟수 (작성 + 좋아요, 중복 제거)
+    }
+
+    /**
+     * 간소화된 후기 DTO (개인 대시보드용)
+     */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class SimpleReportDTO {
+        private Long reportId;        // 후기 ID
+        private String photoUrl;      // 후기 대표 사진 (첫 번째 사진)
+    }
+
+    /**
+     * 개인 대시보드 DTO
+     */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class PrivateDashboardDTO {
+        // 사용자 기본 정보
+        private Long userId;
+        private String userName;
+        
+        // 관련 후기 목록 (간소화: ID와 사진만)
+        private List<SimpleReportDTO> reports;
+        
+        // 월별 활동 통계 (1월~12월): 작성한 후기 + 좋아요한 후기 합계 (중복 제거)
+        private List<MonthlyActivityStatsDTO> monthlyStats;
     }
 }
