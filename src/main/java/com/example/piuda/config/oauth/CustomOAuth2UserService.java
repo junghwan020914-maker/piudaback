@@ -17,21 +17,23 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
         OAuth2UserService<OAuth2UserRequest, OAuth2User> delegate = new DefaultOAuth2UserService();
         OAuth2User oAuth2User = delegate.loadUser(req);
 
-        String registrationId = req.getClientRegistration().getRegistrationId(); // google/kakao/naver
         Map<String, Object> attributes = oAuth2User.getAttributes();
 
-        // 여기서는 표준화만 하고, 가입/로그인은 SuccessHandler에서 처리
-        OAuth2UserInfo info = OAuth2UserInfo.from(registrationId, attributes);
+        // kakao: { id, kakao_account:{email,...}, properties:{nickname,...}}
+        var account = (Map<String, Object>) attributes.get("kakao_account");
+        var props = (Map<String, Object>) attributes.get("properties");
+        String email = account != null ? (String) account.get("email") : null;
+        String nickname = props != null ? (String) props.get("nickname") : null;
 
         return new DefaultOAuth2User(
                 oAuth2User.getAuthorities(),
                 Map.of(
-                        "provider", info.getProvider(),
-                        "providerId", info.getProviderId(),
-                        "email", info.getEmail(),
-                        "name", info.getName()
+                        "provider", "kakao",
+                        "providerId", String.valueOf(attributes.get("id")),
+                        "email", email,
+                        "name", nickname
                 ),
-                "email" // getName() 호출 시 사용될 key
+                "email"
         );
     }
 }

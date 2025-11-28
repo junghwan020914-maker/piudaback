@@ -6,6 +6,7 @@ import com.example.piuda.User.UserService.LoginRequest;
 import com.example.piuda.User.UserService.TokenResponse;
 import com.example.piuda.User.UserService.MeResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -64,22 +65,20 @@ public class UserController {
     public void kakaoLogin(
             @RequestParam(required = false) String phone,
             @RequestParam(required = false) String password,
+            HttpServletRequest request,          // ✅ 추가
             HttpServletResponse response
     ) throws IOException {
 
-        // state에 넣을 데이터 구성
-        Map<String, String> stateMap = new HashMap<>();
-        if (phone != null) stateMap.put("phone", phone);
-        if (password != null) stateMap.put("password", password);
+        // ✅ 1) 세션에 phone/password 저장
+        var session = request.getSession(true);
+        if (phone != null) {
+            session.setAttribute("OAUTH_PHONE", phone);
+        }
+        if (password != null) {
+            session.setAttribute("OAUTH_PW", password);
+        }
 
-        String stateJson = objectMapper.writeValueAsString(stateMap);
-        String stateBase64 = Base64.getUrlEncoder()
-                .encodeToString(stateJson.getBytes(StandardCharsets.UTF_8));
-
-        // Spring Security OAuth2 기본 엔드포인트: /oauth2/authorization/kakao
-        String redirectUrl = "/oauth2/authorization/kakao?state=" +
-                URLEncoder.encode(stateBase64, StandardCharsets.UTF_8);
-
-        response.sendRedirect(redirectUrl);
+        // ✅ 2) 더 이상 state를 우리가 건드리지 않고, 그냥 카카오 OAuth2 엔드포인트로 보냄
+        response.sendRedirect("/oauth2/authorization/kakao");
     }
 }

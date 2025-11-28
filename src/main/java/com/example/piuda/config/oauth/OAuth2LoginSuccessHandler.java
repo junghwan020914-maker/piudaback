@@ -40,41 +40,31 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
         DefaultOAuth2User principal = (DefaultOAuth2User) authentication.getPrincipal();
 
-        // ⚠️ CustomOAuth2UserService 에서 attributes에 "email", "name"을 넣어준다고 가정
         String email = (String) principal.getAttributes().get("email");
         String name  = (String) principal.getAttributes().get("name");
 
-        // 이메일은 엔티티에서 NOT NULL 이므로, 여기서 없으면 바로 에러 처리
         if (!StringUtils.hasText(email)) {
             String redirect = frontRedirectUrl + "?error=no_email";
             response.sendRedirect(redirect);
             return;
         }
 
-        // ==========================
-        //   1) 기존 유저면: 바로 JWT 발급
-        // ==========================
+        // ✅ 1) 세션에서 phone/password 가져오기
+        var session = request.getSession(false);
+        String phone = null;
+        String rawPassword = null;
+        if (session != null) {
+            phone = (String) session.getAttribute("OAUTH_PHONE");
+            rawPassword = (String) session.getAttribute("OAUTH_PW");
+            // 가져온 뒤 세션에서 지워주면 깔끔
+            session.removeAttribute("OAUTH_PHONE");
+            session.removeAttribute("OAUTH_PW");
+        }
+
         User user = userRepository.findByUserEmail(email).orElse(null);
 
         if (user == null) {
-            // ==============================
-            //   2) 신규 유저면: state에서 phone/password 가져오기
-            // ==============================
-
-            String state = request.getParameter("state");
-            String phone = null;
-            String rawPassword = null;
-
-            if (StringUtils.hasText(state)) {
-                try {
-                    String json = new String(Base64.getUrlDecoder().decode(state), StandardCharsets.UTF_8);
-                    Map<String, String> m = objectMapper.readValue(json, Map.class);
-                    phone = m.get("phone");
-                    rawPassword = m.get("password");
-                } catch (Exception ignore) {}
-            }
-
-            // 👉 엔티티가 phone/pw NOT NULL 이므로, 둘 중 하나라도 없으면 가입 불가
+            // 🔐 여전히 phone / password 둘 다 필요한 구조라면 이 체크 유지
             if (!StringUtils.hasText(phone) || !StringUtils.hasText(rawPassword)) {
                 String redirect = frontRedirectUrl
                         + "?error=missing_phone_or_password"
@@ -84,13 +74,9 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                 return;
             }
 
-            // ✅ 여기서 실제 회원 생성 (엔티티 제약 맞춰서)
             user = registerOAuthUserInternal(name, email, phone, rawPassword);
         }
 
-        // ==========================
-        //   3) JWT 발급 & 프론트로 전달
-        // ==========================
         String token = jwtTokenProvider.createToken(
                 user.getUserId(), user.getUserEmail(), user.getUserRole().name()
         );
