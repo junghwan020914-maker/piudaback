@@ -54,8 +54,8 @@ public class DashboardResponseDTO {
         private Integer accumTrashElec;   // 전자제품
         private Integer accumTrashEtc;    // 기타
         
-        // 해당 단체가 작성한 후기 목록
-        private List<ReportResponseDTO> reports;
+        // 해당 단체가 작성한 후기 목록 (간소화)
+        private List<SimpleOrgReportDTO> reports;
         
         // 월별 통계 (1월~12월 막대그래프용)
         private List<MonthlyStatsDTO> monthlyStats;
@@ -63,7 +63,7 @@ public class DashboardResponseDTO {
         /**
          * OrgAccum 엔티티로부터 DTO 생성
          */
-        public static OrgDashboardDTO from(OrgAccum orgAccum, List<ReportResponseDTO> reports, List<MonthlyStatsDTO> monthlyStats) {
+        public static OrgDashboardDTO from(OrgAccum orgAccum, List<SimpleOrgReportDTO> reports, List<MonthlyStatsDTO> monthlyStats) {
             return OrgDashboardDTO.builder()
                     .orgId(orgAccum.getOrg().getOrgId())
                     .orgName(orgAccum.getOrg().getOrgName())
@@ -118,8 +118,8 @@ public class DashboardResponseDTO {
         private Integer accumTrashElec;   // 전자제품
         private Integer accumTrashEtc;    // 기타
         
-        // 제보 목록
-        private List<NotifyDTO> notifies;
+        // 제보 목록 (간소화)
+        private List<SimpleNotifyDTO> notifies;
         
         // 월별 통계 (1월~12월 막대그래프용)
         private List<MonthlyStatsDTO> monthlyStats;
@@ -127,7 +127,7 @@ public class DashboardResponseDTO {
         /**
          * AdminAccum 엔티티로부터 DTO 생성
          */
-        public static AdminDashboardDTO from(com.example.piuda.domain.Entity.AdminAccum adminAccum, List<NotifyDTO> notifies, List<MonthlyStatsDTO> monthlyStats) {
+        public static AdminDashboardDTO from(com.example.piuda.domain.Entity.AdminAccum adminAccum, List<SimpleNotifyDTO> notifies, List<MonthlyStatsDTO> monthlyStats) {
             return AdminDashboardDTO.builder()
                     .adminId(adminAccum.getAdmin().getAdminId())
                     .accumOrg(adminAccum.getAccumOrg())
@@ -179,6 +179,51 @@ public class DashboardResponseDTO {
                     .notifyStatus(notify.getNotifyStatus().name())
                     .pinId(notify.getPin() != null ? notify.getPin().getPinId() : null)
                     .photoUrls(photoUrls)
+                    .build();
+        }
+    }
+
+    /**
+     * 간소화된 후기 DTO (단체 대시보드용)
+     */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class SimpleOrgReportDTO {
+        private Long reportId;        // 후기 ID
+        private String reportTitle;   // 후기 제목
+        private String writerName;    // 후기 작성자
+        private LocalDateTime reportDate; // 후기 날짜
+        
+        public static SimpleOrgReportDTO from(com.example.piuda.domain.Entity.Report report) {
+            return SimpleOrgReportDTO.builder()
+                    .reportId(report.getReportId())
+                    .reportTitle(report.getReportTitle())
+                    .writerName(report.getWriter() != null ? report.getWriter().getUserName() : "익명")
+                    .reportDate(report.getReportDate() != null ? 
+                               report.getReportDate().atStartOfDay() : null)
+                    .build();
+        }
+    }
+
+    /**
+     * 간소화된 제보 DTO (관리자 대시보드용)
+     */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class SimpleNotifyDTO {
+        private Long notifyId;
+        private LocalDateTime notifyCreatedAt;
+        private String notifyStatus;  // WAIT, ACCEPT, REJECT
+        
+        public static SimpleNotifyDTO from(com.example.piuda.domain.Entity.Notify notify) {
+            return SimpleNotifyDTO.builder()
+                    .notifyId(notify.getNotifyId())
+                    .notifyCreatedAt(notify.getNotifyCreatedAt())
+                    .notifyStatus(notify.getNotifyStatus().name())
                     .build();
         }
     }

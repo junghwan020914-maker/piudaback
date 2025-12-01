@@ -43,6 +43,9 @@ dependencies {
 	implementation platform('software.amazon.awssdk:bom:2.25.66')
 	implementation 'software.amazon.awssdk:s3'
 	implementation 'software.amazon.awssdk:apache-client'
+	// Apache POI for Excel
+	implementation 'org.apache.poi:poi:5.2.5'
+	implementation 'org.apache.poi:poi-ooxml:5.2.5'
 }
 
 tasks.named('test') {

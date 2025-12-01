@@ -4,12 +4,18 @@ import com.example.piuda.AdminAccum.AdminAccumService;
 import com.example.piuda.OrgAccum.OrgAccumService;
 import com.example.piuda.domain.DTO.DashboardResponseDTO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @RestController
 @RequestMapping("/api/dashboard")
@@ -19,6 +25,7 @@ public class DashboardController {
     private final DashboardService dashboardService;
     private final OrgAccumService orgAccumService;
     private final AdminAccumService adminAccumService;
+    private final ExcelService excelService;
 
     /**
      * 단체 대시보드 조회
@@ -89,5 +96,29 @@ public class DashboardController {
         
         String email = authentication.getName();
         return ResponseEntity.ok(dashboardService.getPrivateDashboard(email));
+    }
+
+    /**
+     * 관리자 대시보드 - 후기 엑셀 다운로드
+     * 모든 후기 데이터를 Trash, 단체, 좌표 정보와 함께 엑셀 파일로 다운로드
+     * 
+     * @param authentication Spring Security가 자동으로 주입하는 인증 정보
+     * @return 엑셀 파일 바이트 배열
+     * @throws IOException 엑셀 생성 중 오류 발생 시
+     */
+    @GetMapping("/admin/excel")
+    public ResponseEntity<byte[]> downloadReportsExcel(Authentication authentication) throws IOException {
+        if (authentication == null) {
+            throw new IllegalArgumentException("로그인이 필요합니다.");
+        }
+        
+        byte[] excelData = excelService.generateReportsExcel();
+        
+        String filename = "reports_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".xlsx";
+        
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(excelData);
     }
 }

@@ -10,4 +10,7 @@ public interface NotifyRepository extends JpaRepository<Notify, Long> {
     List<Notify> findByNotifyStatus(NotifyStatus status);
     List<Notify> findByPin(Pin pin);
     List<Notify> findByPinAndNotifyStatus(Pin pin, Notify.NotifyStatus status);
+    
+    // WAIT 상태의 제보를 최신순으로 조회
+    List<Notify> findByNotifyStatusOrderByNotifyCreatedAtDesc(NotifyStatus status);
 }

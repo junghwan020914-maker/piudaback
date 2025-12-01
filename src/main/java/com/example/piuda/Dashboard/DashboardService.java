@@ -3,14 +3,12 @@ package com.example.piuda.Dashboard;
 import com.example.piuda.Admin.AdminRepository;
 import com.example.piuda.AdminAccum.AdminAccumRepository;
 import com.example.piuda.Notify.NotifyRepository;
-import com.example.piuda.NotifyPhoto.NotifyPhotoRepository;
 import com.example.piuda.Org.OrgRepository;
 import com.example.piuda.OrgAccum.OrgAccumRepository;
 import com.example.piuda.Report.ReportRepository;
 import com.example.piuda.ReportPhoto.ReportPhotoRepository;
 import com.example.piuda.User.UserRepository;
 import com.example.piuda.domain.DTO.DashboardResponseDTO;
-import com.example.piuda.domain.DTO.ReportResponseDTO;
 import com.example.piuda.domain.Entity.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,7 +30,6 @@ public class DashboardService {
     private final AdminRepository adminRepository;
     private final AdminAccumRepository adminAccumRepository;
     private final NotifyRepository notifyRepository;
-    private final NotifyPhotoRepository notifyPhotoRepository;
 
     /**
      * 단체 대시보드 데이터 조회
@@ -49,22 +46,32 @@ public class DashboardService {
         Org org = orgRepository.findByUser(user)
                 .orElseThrow(() -> new IllegalArgumentException("단체 정보를 찾을 수 없습니다."));
         
-        // 3. Org로 OrgAccum 조회
+        // 3. Org로 OrgAccum 조회 (없으면 기본값으로 생성)
         OrgAccum orgAccum = orgAccumRepository.findByOrg(org)
-                .orElseThrow(() -> new IllegalArgumentException("누적 데이터를 찾을 수 없습니다."));
+                .orElseGet(() -> OrgAccum.builder()
+                        .org(org)
+                        .accumPeople(0)
+                        .accumKg(0.0)
+                        .accumL(0.0)
+                        .accumAct(0)
+                        .accumUpdatedAt(LocalDateTime.now())
+                        .accumtrashPet(0)
+                        .accumtrashBag(0)
+                        .accumtrashNet(0)
+                        .accumtrashGlass(0)
+                        .accumtrashCan(0)
+                        .accumtrashRope(0)
+                        .accumtrashCloth(0)
+                        .accumtrashElec(0)
+                        .accumtrashEtc(0)
+                        .build());
         
         // 4. 해당 단체가 작성한 후기 목록 조회
         List<Report> reports = reportRepository.findByOrg(org);
         
-        // 5. Report를 ReportResponseDTO로 변환
-        List<ReportResponseDTO> reportDTOs = reports.stream()
-                .map(report -> {
-                    List<String> photoUrls = reportPhotoRepository.findByReport(report)
-                            .stream()
-                            .map(photo -> photo.getRphotoPath())
-                            .collect(Collectors.toList());
-                    return new ReportResponseDTO(report, photoUrls);
-                })
+        // 5. Report를 SimpleOrgReportDTO로 변환 (간소화: ID, 제목, 작성자, 날짜만)
+        List<DashboardResponseDTO.SimpleOrgReportDTO> reportDTOs = reports.stream()
+                .map(DashboardResponseDTO.SimpleOrgReportDTO::from)
                 .collect(Collectors.toList());
         
         // 6. 월별 통계 데이터 생성 (현재 년도 기준 1월~12월)
@@ -105,18 +112,12 @@ public class DashboardService {
         AdminAccum adminAccum = adminAccumRepository.findByAdmin(admin)
                 .orElseThrow(() -> new IllegalArgumentException("누적 데이터를 찾을 수 없습니다."));
         
-        // 4. 모든 제보 목록 조회
-        List<Notify> notifies = notifyRepository.findAll();
+        // 4. WAIT 상태의 제보 목록만 최신순으로 조회
+        List<Notify> notifies = notifyRepository.findByNotifyStatusOrderByNotifyCreatedAtDesc(Notify.NotifyStatus.WAIT);
         
-        // 5. Notify를 NotifyDTO로 변환
-        List<DashboardResponseDTO.NotifyDTO> notifyDTOs = notifies.stream()
-                .map(notify -> {
-                    List<String> photoUrls = notifyPhotoRepository.findByNotify(notify)
-                            .stream()
-                            .map(photo -> photo.getNphotoPath())
-                            .collect(Collectors.toList());
-                    return DashboardResponseDTO.NotifyDTO.from(notify, photoUrls);
-                })
+        // 5. Notify를 SimpleNotifyDTO로 변환 (간소화: ID, 생성시간, 상태만)
+        List<DashboardResponseDTO.SimpleNotifyDTO> notifyDTOs = notifies.stream()
+                .map(DashboardResponseDTO.SimpleNotifyDTO::from)
                 .collect(Collectors.toList());
         
         // 6. 월별 통계 데이터 생성 (현재 년도 기준 1월~12월, 전체 사용자 후기 기준)
