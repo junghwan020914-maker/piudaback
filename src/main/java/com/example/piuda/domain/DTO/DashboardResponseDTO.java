@@ -263,6 +263,7 @@ public class DashboardResponseDTO {
         // 사용자 기본 정보
         private Long userId;
         private String userName;
+        private LocalDateTime createdAt;
         
         // 관련 후기 목록 (간소화: ID와 사진만)
         private List<SimpleReportDTO> reports;

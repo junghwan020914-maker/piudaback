@@ -90,4 +90,26 @@ public class ReportResponseDTO {
                     .build();
         }
     }
+    @Getter
+    @AllArgsConstructor
+    @Builder
+    public static class ReportPageDTO {
+        private Long reportId;
+        private String reportTitle;
+        private String orgName;
+        private LocalDate reportDate;
+        private String reportDetailLocation;
+        public static ReportPageDTO from(Report report) {
+            String orgName = (report.getOrg() != null && report.getOrg().getOrgName() != null)
+                    ? report.getOrg().getOrgName()
+                    : report.getReportName();
+            return ReportPageDTO.builder()
+                    .reportId(report.getReportId())
+                    .reportTitle(report.getReportTitle())
+                    .orgName(orgName)
+                    .reportDate(report.getReportDate())
+                    .reportDetailLocation(report.getReportDetailLocation())
+                    .build();
+        }
+    }
 }
