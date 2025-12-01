@@ -15,6 +15,7 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     List<Report> findByPin(Pin pin);
     List<Report> findByOrg(Org org);
     List<Report> findAllByOrderByReportDateDesc();
+    List<Report> findByOrgOrderByReportDateDesc(Org org);
     
     @Query("SELECT SUM(r.reportPeople) FROM Report r WHERE r.org = :org")
     Integer sumPeopleByOrg(@Param("org") Org org);
