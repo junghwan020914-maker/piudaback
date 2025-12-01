@@ -99,6 +99,31 @@ public class DashboardController {
     }
 
     /**
+     * 단체 대시보드 - 후기 엑셀 다운로드
+     * 해당 단체가 작성한 후기 데이터를 Trash, 좌표 정보와 함께 엑셀 파일로 다운로드
+     * 
+     * @param authentication Spring Security가 자동으로 주입하는 인증 정보
+     * @return 엑셀 파일 바이트 배열
+     * @throws IOException 엑셀 생성 중 오류 발생 시
+     */
+    @GetMapping("/org/excel")
+    public ResponseEntity<byte[]> downloadOrgReportsExcel(Authentication authentication) throws IOException {
+        if (authentication == null) {
+            throw new IllegalArgumentException("로그인이 필요합니다.");
+        }
+        
+        String email = authentication.getName();
+        byte[] excelData = excelService.generateOrgReportsExcel(email);
+        
+        String filename = "org_reports_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".xlsx";
+        
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(excelData);
+    }
+
+    /**
      * 관리자 대시보드 - 후기 엑셀 다운로드
      * 모든 후기 데이터를 Trash, 단체, 좌표 정보와 함께 엑셀 파일로 다운로드
      * 
