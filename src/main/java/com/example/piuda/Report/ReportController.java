@@ -38,7 +38,12 @@ public class ReportController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ReportResponseDTO>> getAllReports() {
-        return ResponseEntity.ok(reportService.getAllReportsWithPhotos());
+    public ResponseEntity<List<ReportResponseDTO.ReportPageDTO>> getAllReports() {
+        return ResponseEntity.ok(reportService.getAllReportsSimple());
+    }
+
+    @GetMapping("/{reportId}")
+    public ResponseEntity<ReportResponseDTO> getReportDetail(@PathVariable Long reportId) {
+        return ResponseEntity.ok(reportService.getReportDetail(reportId));
     }
 }

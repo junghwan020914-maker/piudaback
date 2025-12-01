@@ -209,6 +209,7 @@ public class DashboardService {
         return DashboardResponseDTO.PrivateDashboardDTO.builder()
                 .userId(user.getUserId())
                 .userName(user.getUserName())
+                .createdAt(user.getUserCreatedAt())
                 .reports(simpleReportDTOs)
                 .monthlyStats(monthlyStats)
                 .build();

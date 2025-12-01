@@ -135,4 +135,23 @@ public class ReportService {
         }).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public List<ReportResponseDTO.ReportPageDTO> getAllReportsSimple() {
+        List<Report> reports = reportRepository.findAll();
+        return reports.stream()
+                .map(ReportResponseDTO.ReportPageDTO::from)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public ReportResponseDTO getReportDetail(Long reportId) {
+        Report report = reportRepository.findById(reportId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 후기를 찾을 수 없습니다."));
+        List<ReportPhoto> photos = reportPhotoRepository.findByReport(report);
+        List<String> photoUrls = photos.stream()
+                .map(ReportPhoto::getRphotoPath)
+                .collect(Collectors.toList());
+        return new ReportResponseDTO(report, photoUrls);
+    }
+
 }
