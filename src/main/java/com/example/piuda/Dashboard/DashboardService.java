@@ -105,18 +105,12 @@ public class DashboardService {
         AdminAccum adminAccum = adminAccumRepository.findByAdmin(admin)
                 .orElseThrow(() -> new IllegalArgumentException("누적 데이터를 찾을 수 없습니다."));
         
-        // 4. 모든 제보 목록 조회
-        List<Notify> notifies = notifyRepository.findAll();
+        // 4. WAIT 상태의 제보 목록만 최신순으로 조회
+        List<Notify> notifies = notifyRepository.findByNotifyStatusOrderByNotifyCreatedAtDesc(Notify.NotifyStatus.WAIT);
         
-        // 5. Notify를 NotifyDTO로 변환
-        List<DashboardResponseDTO.NotifyDTO> notifyDTOs = notifies.stream()
-                .map(notify -> {
-                    List<String> photoUrls = notifyPhotoRepository.findByNotify(notify)
-                            .stream()
-                            .map(photo -> photo.getNphotoPath())
-                            .collect(Collectors.toList());
-                    return DashboardResponseDTO.NotifyDTO.from(notify, photoUrls);
-                })
+        // 5. Notify를 SimpleNotifyDTO로 변환 (간소화: ID, 생성시간, 상태만)
+        List<DashboardResponseDTO.SimpleNotifyDTO> notifyDTOs = notifies.stream()
+                .map(DashboardResponseDTO.SimpleNotifyDTO::from)
                 .collect(Collectors.toList());
         
         // 6. 월별 통계 데이터 생성 (현재 년도 기준 1월~12월, 전체 사용자 후기 기준)
