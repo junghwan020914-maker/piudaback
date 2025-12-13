@@ -76,6 +76,7 @@ public class PinService {
         return pinRepository.save(pin);
     }
     // 초기 지도 로드용: 전체 핀 데이터(클라이언트 필터링용 요약 포함) 반환
+    @Transactional
     public List<PinResponseDTO> getAllPinsForClient() {
         List<Pin> pins = pinRepository.findAll();
         return pins.stream().map(pin -> {
@@ -173,6 +174,7 @@ public class PinService {
     }
 
     // 핀 상세 조회 (PinResponseDTO 재사용)
+    @Transactional
     public PinResponseDTO getPinDetails(Long pinId) {
         Pin pin = pinRepository.findById(pinId).orElse(null);
         if (pin == null) return null;
