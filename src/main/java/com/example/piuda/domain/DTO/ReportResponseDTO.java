@@ -26,6 +26,19 @@ public class ReportResponseDTO {
     private Long writerId;      // writer의 user_id (있는 경우)
     private String writerName;  // writer의 이름 또는 단체명
     private String writerEmail; // writer의 이메일 (있는 경우)
+    
+    // Trash 상세 정보
+    private Double trashKg;
+    private Double trashL;
+    private Integer trashPet;
+    private Integer trashBag;
+    private Integer trashNet;
+    private Integer trashGlass;
+    private Integer trashCan;
+    private Integer trashRope;
+    private Integer trashCloth;
+    private Integer trashElec;
+    private Integer trashEtc;
 
     public ReportResponseDTO(Report report, List<String> photoUrls) {
         this.reportId = report.getReportId();
@@ -39,6 +52,21 @@ public class ReportResponseDTO {
         this.pinId = report.getPin().getPinId();
         this.photoUrls = photoUrls;
         this.writerType = report.getWriterType().name();
+        
+        // Trash 정보 설정
+        if (report.getTrash() != null) {
+            this.trashKg = report.getTrash().getTrashKg();
+            this.trashL = report.getTrash().getTrashL();
+            this.trashPet = report.getTrash().getTrashPet();
+            this.trashBag = report.getTrash().getTrashBag();
+            this.trashNet = report.getTrash().getTrashNet();
+            this.trashGlass = report.getTrash().getTrashGlass();
+            this.trashCan = report.getTrash().getTrashCan();
+            this.trashRope = report.getTrash().getTrashRope();
+            this.trashCloth = report.getTrash().getTrashCloth();
+            this.trashElec = report.getTrash().getTrashElec();
+            this.trashEtc = report.getTrash().getTrashEtc();
+        }
         
         // writer 정보 설정
         if (report.getWriter() != null) {

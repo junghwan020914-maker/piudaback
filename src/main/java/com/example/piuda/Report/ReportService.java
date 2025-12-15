@@ -51,17 +51,17 @@ public class ReportService {
         trashBuilder.trashKg(dto.getTrashKg() != null ? dto.getTrashKg() : 0.0);
         trashBuilder.trashL(dto.getTrashL() != null ? dto.getTrashL() : 0.0);
 
-        // 선택적 쓰레기 종류별 개수 설정 (DTO 필드명을 엔티티와 동일하게 사용)
+        // 선택적 쓰레기 종류별 개수 설정 (null인 경우 0으로 저장)
         Trash trash = trashBuilder
-            .trashPet(dto.getTrashPet())
-            .trashBag(dto.getTrashBag())
-            .trashNet(dto.getTrashNet())
-            .trashGlass(dto.getTrashGlass())
-            .trashCan(dto.getTrashCan())
-            .trashRope(dto.getTrashRope())
-            .trashCloth(dto.getTrashCloth())
-            .trashElec(dto.getTrashElec())
-            .trashEtc(dto.getTrashEtc())
+            .trashPet(dto.getTrashPet() != null ? dto.getTrashPet() : 0)
+            .trashBag(dto.getTrashBag() != null ? dto.getTrashBag() : 0)
+            .trashNet(dto.getTrashNet() != null ? dto.getTrashNet() : 0)
+            .trashGlass(dto.getTrashGlass() != null ? dto.getTrashGlass() : 0)
+            .trashCan(dto.getTrashCan() != null ? dto.getTrashCan() : 0)
+            .trashRope(dto.getTrashRope() != null ? dto.getTrashRope() : 0)
+            .trashCloth(dto.getTrashCloth() != null ? dto.getTrashCloth() : 0)
+            .trashElec(dto.getTrashElec() != null ? dto.getTrashElec() : 0)
+            .trashEtc(dto.getTrashEtc() != null ? dto.getTrashEtc() : 0)
             .build();
 
         trashRepository.save(trash);
