@@ -56,8 +56,8 @@ public class Report {
     private WriterType writerType;
 
     public enum WriterType {
-        GROUP,     // 로그인 없이 작성한 후기
+        GROUP,     // 단체 계정으로 작성한 후기
         PRIVATE,          // 로그인한 개인
-        ANONYMOUS   // 단체 계정으로 작성한 후기
+        ANONYMOUS   // 로그인 없이 작성한 후기
     }
 }

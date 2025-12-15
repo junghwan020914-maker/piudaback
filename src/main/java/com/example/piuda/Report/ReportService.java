@@ -11,12 +11,14 @@ import com.example.piuda.domain.DTO.ReportRequestDTO;
 import com.example.piuda.domain.DTO.ReportResponseDTO;
 import com.example.piuda.domain.Entity.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import com.example.piuda.storage.StorageService;
 import com.example.piuda.storage.StorageFolder;
+import com.example.piuda.storage.PresignedUrlService;
 import com.example.piuda.Pin.PinService;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -24,6 +26,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class ReportService {
 
     private final ReportRepository reportRepository;
@@ -31,6 +34,7 @@ public class ReportService {
     private final TrashRepository trashRepository;
     private final ReportPhotoRepository reportPhotoRepository;
     private final StorageService storageService;
+    private final PresignedUrlService presignedUrlService;
     private final PinService pinService;
     private final UserRepository userRepository;
     private final OrgRepository orgRepository;
@@ -128,9 +132,9 @@ public class ReportService {
         List<Report> reports = reportRepository.findAll();
         return reports.stream().map(report -> {
             List<ReportPhoto> photos = reportPhotoRepository.findByReport(report);
-            List<String> photoUrls = photos.stream()
-                                           .map(ReportPhoto::getRphotoPath)
-                                           .collect(Collectors.toList());
+            List<String> photoUrls = presignedUrlService.convertToPresignedUrls(
+                    photos.stream().map(ReportPhoto::getRphotoPath).collect(Collectors.toList())
+            );
             return new ReportResponseDTO(report, photoUrls);
         }).collect(Collectors.toList());
     }
@@ -148,9 +152,9 @@ public class ReportService {
         Report report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 후기를 찾을 수 없습니다."));
         List<ReportPhoto> photos = reportPhotoRepository.findByReport(report);
-        List<String> photoUrls = photos.stream()
-                .map(ReportPhoto::getRphotoPath)
-                .collect(Collectors.toList());
+        List<String> photoUrls = presignedUrlService.convertToPresignedUrls(
+                photos.stream().map(ReportPhoto::getRphotoPath).collect(Collectors.toList())
+        );
         return new ReportResponseDTO(report, photoUrls);
     }
 

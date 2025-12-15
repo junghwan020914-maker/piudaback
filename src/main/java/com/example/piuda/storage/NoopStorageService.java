@@ -21,4 +21,9 @@ public class NoopStorageService implements StorageService {
     public String getUrl(String key) {
         return "noop://" + key;
     }
+
+    @Override
+    public String getPresignedUrl(String key, int expirationMinutes) {
+        return "noop://" + key + "?presigned=true&expires=" + expirationMinutes;
+    }
 }

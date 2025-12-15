@@ -24,4 +24,12 @@ public interface StorageService {
      * Build public URL for an object key.
      */
     String getUrl(String key);
+
+    /**
+     * Generate presigned URL for private objects.
+     * @param key object key
+     * @param expirationMinutes expiration time in minutes
+     * @return presigned URL
+     */
+    String getPresignedUrl(String key, int expirationMinutes);
 }

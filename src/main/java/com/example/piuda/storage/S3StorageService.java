@@ -11,10 +11,19 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Base64;
 import java.util.UUID;
 
 @Slf4j
@@ -87,5 +96,51 @@ public class S3StorageService implements StorageService {
         .replace("https://", "")
         .replace("http://", "");
         return "https://" + properties.getBucket() + "." + endpoint + "/" + key;
+    }
+
+    @Override
+    public String getPresignedUrl(String key, int expirationMinutes) {
+        try {
+            log.info("Generating presigned URL for key: {}", key);
+            
+            long expirationSeconds = Instant.now().getEpochSecond() + (expirationMinutes * 60L);
+            
+            // NHN Object Storage는 AWS Signature Version 2를 사용
+            // 형식: GET\n\n\nexpires\n/bucket/key
+            String canonicalResource = "/" + properties.getBucket() + "/" + key;
+            String stringToSign = "GET\n\n\n" + expirationSeconds + "\n" + canonicalResource;
+            
+            log.info("String to sign: {}", stringToSign);
+            
+            // HMAC-SHA1으로 서명 생성
+            Mac hmac = Mac.getInstance("HmacSHA1");
+            SecretKeySpec secretKey = new SecretKeySpec(
+                    properties.getSecretKey().getBytes(StandardCharsets.UTF_8), 
+                    "HmacSHA1");
+            hmac.init(secretKey);
+            byte[] signatureBytes = hmac.doFinal(stringToSign.getBytes(StandardCharsets.UTF_8));
+            String signature = Base64.getEncoder().encodeToString(signatureBytes);
+            
+            // URL 인코딩
+            String encodedSignature = URLEncoder.encode(signature, StandardCharsets.UTF_8);
+            
+            // NHN Object Storage API endpoint 사용 (public URL 아님)
+            // endpoint: https://kr1-api-object-storage.nhncloudservice.com
+            String apiEndpoint = properties.getEndpoint().replaceAll("/+$", "");
+            String presignedUrl = apiEndpoint + "/" + properties.getBucket() + "/" + key +
+                    "?AWSAccessKeyId=" + URLEncoder.encode(properties.getAccessKey(), StandardCharsets.UTF_8) +
+                    "&Expires=" + expirationSeconds +
+                    "&Signature=" + encodedSignature;
+            
+            log.info("Generated presigned URL: {}", presignedUrl);
+            return presignedUrl;
+            
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            log.error("Presigned URL 생성 실패 (암호화 오류): {}", e.getMessage(), e);
+            throw new StorageException("Presigned URL 생성 실패", e);
+        } catch (Exception e) {
+            log.error("Presigned URL 생성 실패: {}", e.getMessage(), e);
+            throw new StorageException("Presigned URL 생성 실패", e);
+        }
     }
 }

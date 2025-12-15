@@ -8,6 +8,7 @@ import com.example.piuda.domain.DTO.PinResponseDTO;
 import com.example.piuda.domain.Entity.Pin;
 import com.example.piuda.domain.Entity.Report;
 import com.example.piuda.domain.Entity.Trash;
+import com.example.piuda.storage.PresignedUrlService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class PinService {
     private final ReservRepository reservRepository;
     private final ReportPhotoRepository reportPhotoRepository;
     private final com.example.piuda.NotifyPhoto.NotifyPhotoRepository notifyPhotoRepository;
+    private final PresignedUrlService presignedUrlService;
 
     public List<Pin> getAllPins() {
         return pinRepository.findAll();
@@ -107,10 +109,12 @@ public class PinService {
             // 2) Report 요약 생성 (trashKg, trashL, 사진 경로 포함)
             List<PinResponseDTO.ReportSummary> reportSummaries = reports.stream().map(r -> {
                 var photos = reportPhotoRepository.findByReport(r);
-                List<String> photoPaths = photos.stream()
-                        .map(p -> p.getRphotoPath())
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toList());
+                List<String> photoPaths = presignedUrlService.convertToPresignedUrls(
+                        photos.stream()
+                                .map(p -> p.getRphotoPath())
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toList())
+                );
                 return new PinResponseDTO.ReportSummary(
                         r.getReportId(),
                         r.getReportTitle(),
@@ -129,10 +133,12 @@ public class PinService {
                 var notifies = notifyRepository.findByPinAndNotifyStatus(pin, com.example.piuda.domain.Entity.Notify.NotifyStatus.ACCEPT);
                 notifySummaries = notifies.stream().map(n -> {
                     var nPhotos = notifyPhotoRepository.findByNotify(n);
-                    List<String> nPhotoUrls = nPhotos.stream()
-                            .map(np -> np.getNphotoPath())
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toList());
+                    List<String> nPhotoUrls = presignedUrlService.convertToPresignedUrls(
+                            nPhotos.stream()
+                                    .map(np -> np.getNphotoPath())
+                                    .filter(Objects::nonNull)
+                                    .collect(Collectors.toList())
+                    );
                     return new PinResponseDTO.NotifySummary(
                             n.getNotifyId(),
                             n.getNotifyContent(),
@@ -206,10 +212,12 @@ public class PinService {
         List<PinResponseDTO.ReportSummary> summaries = reports.stream()
             .map(r -> {
                 var photos = reportPhotoRepository.findByReport(r);
-                List<String> paths = photos.stream()
-                    .map(p -> p.getRphotoPath())
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+                List<String> paths = presignedUrlService.convertToPresignedUrls(
+                        photos.stream()
+                                .map(p -> p.getRphotoPath())
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toList())
+                );
                 return new PinResponseDTO.ReportSummary(
                     r.getReportId(),
                     r.getReportTitle(),
@@ -229,10 +237,12 @@ public class PinService {
         var notifies = notifyRepository.findByPinAndNotifyStatus(pin, com.example.piuda.domain.Entity.Notify.NotifyStatus.ACCEPT);
         notifySummaries = notifies.stream().map(n -> {
         var photos = notifyPhotoRepository.findByNotify(n);
-        List<String> photoUrls = photos.stream()
-            .map(np -> np.getNphotoPath())
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+        List<String> photoUrls = presignedUrlService.convertToPresignedUrls(
+                photos.stream()
+                        .map(np -> np.getNphotoPath())
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList())
+        );
         return new PinResponseDTO.NotifySummary(
             n.getNotifyId(),
             n.getNotifyContent(),
