@@ -3,6 +3,7 @@ package com.example.piuda.Dashboard;
 import com.example.piuda.Admin.AdminRepository;
 import com.example.piuda.AdminAccum.AdminAccumRepository;
 import com.example.piuda.Notify.NotifyRepository;
+import com.example.piuda.NotifyPhoto.NotifyPhotoRepository;
 import com.example.piuda.Org.OrgRepository;
 import com.example.piuda.OrgAccum.OrgAccumRepository;
 import com.example.piuda.Report.ReportRepository;
@@ -10,6 +11,7 @@ import com.example.piuda.ReportPhoto.ReportPhotoRepository;
 import com.example.piuda.User.UserRepository;
 import com.example.piuda.domain.DTO.DashboardResponseDTO;
 import com.example.piuda.domain.Entity.*;
+import com.example.piuda.storage.PresignedUrlService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +32,8 @@ public class DashboardService {
     private final AdminRepository adminRepository;
     private final AdminAccumRepository adminAccumRepository;
     private final NotifyRepository notifyRepository;
+    private final NotifyPhotoRepository notifyPhotoRepository;
+    private final PresignedUrlService presignedUrlService;
 
     /**
      * 단체 대시보드 데이터 조회
@@ -132,9 +136,17 @@ public class DashboardService {
         // 4. WAIT 상태의 제보 목록만 최신순으로 조회
         List<Notify> notifies = notifyRepository.findByNotifyStatusOrderByNotifyCreatedAtDesc(Notify.NotifyStatus.WAIT);
         
-        // 5. Notify를 SimpleNotifyDTO로 변환 (간소화: ID, 생성시간, 상태만)
+        // 5. Notify를 SimpleNotifyDTO로 변환 (사진 URL 포함)
         List<DashboardResponseDTO.SimpleNotifyDTO> notifyDTOs = notifies.stream()
-                .map(DashboardResponseDTO.SimpleNotifyDTO::from)
+                .map(notify -> {
+                    List<NotifyPhoto> photos = notifyPhotoRepository.findByNotify(notify);
+                    List<String> photoUrls = presignedUrlService.convertToPresignedUrls(
+                            photos.stream()
+                                    .map(NotifyPhoto::getNphotoPath)
+                                    .collect(Collectors.toList())
+                    );
+                    return DashboardResponseDTO.SimpleNotifyDTO.from(notify, photoUrls);
+                })
                 .collect(Collectors.toList());
         
         // 6. 월별 통계 데이터 생성 (현재 년도 기준 1월~12월, 전체 사용자 후기 기준)

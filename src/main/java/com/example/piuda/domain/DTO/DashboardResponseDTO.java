@@ -218,12 +218,14 @@ public class DashboardResponseDTO {
         private Long notifyId;
         private LocalDateTime notifyCreatedAt;
         private String notifyStatus;  // WAIT, ACCEPT, REJECT
+        private List<String> photoUrls;  // 제보 사진 URL 목록
         
-        public static SimpleNotifyDTO from(com.example.piuda.domain.Entity.Notify notify) {
+        public static SimpleNotifyDTO from(com.example.piuda.domain.Entity.Notify notify, List<String> photoUrls) {
             return SimpleNotifyDTO.builder()
                     .notifyId(notify.getNotifyId())
                     .notifyCreatedAt(notify.getNotifyCreatedAt())
                     .notifyStatus(notify.getNotifyStatus().name())
+                    .photoUrls(photoUrls)
                     .build();
         }
     }
