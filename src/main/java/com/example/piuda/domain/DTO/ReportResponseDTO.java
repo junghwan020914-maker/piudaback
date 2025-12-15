@@ -21,6 +21,8 @@ public class ReportResponseDTO {
     private String reportContent;
     private Long trashId;
     private Long pinId;
+    private Double pinX;  // 경도
+    private Double pinY;  // 위도
     private List<String> photoUrls;
     private String writerType;  // ANONYMOUS, USER, ORGANIZATION
     private Long writerId;      // writer의 user_id (있는 경우)
@@ -50,6 +52,8 @@ public class ReportResponseDTO {
         this.reportContent = report.getReportContent();
         this.trashId = report.getTrash().getTrashId();
         this.pinId = report.getPin().getPinId();
+        this.pinX = report.getPin().getPinX();
+        this.pinY = report.getPin().getPinY();
         this.photoUrls = photoUrls;
         this.writerType = report.getWriterType().name();
         
