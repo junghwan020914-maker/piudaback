@@ -208,9 +208,13 @@ public class DashboardService {
                         .map(photo -> photo.getRphotoPath())
                         .orElse(null);
                 
+                // Presigned URL로 변환
+                String presignedPhotoUrl = photoUrl != null ? 
+                        presignedUrlService.convertToPresignedUrl(photoUrl) : null;
+                
                 simpleReportDTOs.add(DashboardResponseDTO.SimpleReportDTO.builder()
                         .reportId(reportId)
-                        .photoUrl(photoUrl)
+                        .photoUrl(presignedPhotoUrl)
                         .build());
             }
         }
