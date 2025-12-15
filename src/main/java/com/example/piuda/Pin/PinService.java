@@ -71,7 +71,7 @@ public class PinService {
                 .pinX(x)
                 .pinY(y)
                 .pinCreatedAt(LocalDateTime.now())
-                .pinColor(Pin.PinColor.WHITE)
+                .pinColor(Pin.PinColor.RED)
                 .build();
         return pinRepository.save(pin);
     }
