@@ -108,9 +108,26 @@ public class DashboardService {
         Admin admin = adminRepository.findByUser(user)
                 .orElseThrow(() -> new IllegalArgumentException("관리자 정보를 찾을 수 없습니다."));
         
-        // 3. Admin으로 AdminAccum 조회
+        // 3. Admin으로 AdminAccum 조회 (없으면 기본값으로 생성)
         AdminAccum adminAccum = adminAccumRepository.findByAdmin(admin)
-                .orElseThrow(() -> new IllegalArgumentException("누적 데이터를 찾을 수 없습니다."));
+                .orElseGet(() -> AdminAccum.builder()
+                        .admin(admin)
+                        .accumUser(0)
+                        .accumKg(0.0)
+                        .accumL(0.0)
+                        .accumAct(0)
+                        .accumOrg(0)
+                        .accumUpdatedAt(LocalDateTime.now())
+                        .accumtrashPet(0)
+                        .accumtrashBag(0)
+                        .accumtrashNet(0)
+                        .accumtrashGlass(0)
+                        .accumtrashCan(0)
+                        .accumtrashRope(0)
+                        .accumtrashCloth(0)
+                        .accumtrashElec(0)
+                        .accumtrashEtc(0)
+                        .build());
         
         // 4. WAIT 상태의 제보 목록만 최신순으로 조회
         List<Notify> notifies = notifyRepository.findByNotifyStatusOrderByNotifyCreatedAtDesc(Notify.NotifyStatus.WAIT);
