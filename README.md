@@ -1,5 +1,4 @@
-# <img width="1300" height="352" alt="image" src="https://github.com/user-attachments/assets/8e04559d-6af5-4cb6-9aee-a6cc5adb67e2" />
- 포세이돈닷컴
+# 포세이돈닷컴
 
 > **해양 환경 정화 활동을 위한 통합 ICT 플랫폼**
 
