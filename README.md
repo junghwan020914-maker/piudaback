@@ -1,4 +1,5 @@
-# <img width="128" height="31" alt="image" src="https://github.com/user-attachments/assets/387a857c-bc9a-4640-8886-3a649284fb70" /> 포세이돈닷컴
+# <img width="1300" height="352" alt="image" src="https://github.com/user-attachments/assets/8e04559d-6af5-4cb6-9aee-a6cc5adb67e2" />
+ 포세이돈닷컴
 
 > **해양 환경 정화 활동을 위한 통합 ICT 플랫폼**
 
@@ -7,13 +8,13 @@
 # 🚀 피우다 공모전
 - **사회적 임팩트조직의 활동을 돕는 SW개발**
 
-<img width="700" height="990" alt="image" src="https://github.com/user-attachments/assets/00d32411-247e-454b-bf46-4ee856ac48e0" />
+<img width="350" height="495" alt="image" src="https://github.com/user-attachments/assets/00d32411-247e-454b-bf46-4ee856ac48e0" />
 
 ---
 
 ## 📖 프로젝트 소개
 
-<img width="469" height="227" alt="image" src="https://github.com/user-attachments/assets/853d68d3-0e03-4ef1-8a19-ab8ee4770771" />
+<img width="900" height="450" alt="image" src="https://github.com/user-attachments/assets/853d68d3-0e03-4ef1-8a19-ab8ee4770771" />
 
 ---
 
